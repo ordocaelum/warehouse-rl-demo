@@ -1,0 +1,14 @@
+h1, h2, h3, h4 {
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.9rem;
+}
+
+h1 { font-size: clamp(2rem, 4vw, 3rem); }
+h2 { font-size: clamp(1.4rem, 2.2vw, 2rem); margin-top: 2.1rem; }
+h3 { font-size: clamp(1.1rem, 1.9vw, 1.4rem); margin-top: 1.5rem; }
+
+p, li { color: var(--text); line-height: 1.7; }
+small, .muted { color: var(--muted); }
+
+.page-hero p { color: var(--muted); max-width: 70ch; }

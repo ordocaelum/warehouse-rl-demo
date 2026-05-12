@@ -1,0 +1,68 @@
+---
+layout: home
+title: Home
+description: Interactive reinforcement learning lab documentation and training workflows.
+---
+<section class="hero container reveal">
+  <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="Warehouse RL logo" width="120" height="120" />
+  <h1 class="title-gradient">Warehouse RL Training Lab</h1>
+  <p>Custom Gymnasium environment with DQN training, interactive visualization, and curriculum learning workflows presented in a production-grade documentation hub.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="{{ '/docs/documentation.html' | relative_url }}">Read Documentation</a>
+    <a class="btn" href="{{ '/docs/tutorial.html' | relative_url }}">Start Tutorial</a>
+    <a class="btn" href="https://github.com/ordocaelum/warehouse-rl-demo">GitHub Repository</a>
+  </div>
+</section>
+
+<section class="container reveal">
+  <h2>Core Capabilities</h2>
+  <div class="feature-grid">
+    {% include feature-card.html title="Custom Warehouse Environment" text="Configurable grid world with dynamic package placement and delivery constraints." %}
+    {% include feature-card.html title="DQN Training Pipeline" text="Stable Baselines3-driven Deep Q-Learning with replay buffer and epsilon schedule controls." %}
+    {% include feature-card.html title="Interactive Dashboard" text="PyGame training lab with controls, live telemetry, and pause/resume operations." %}
+    {% include feature-card.html title="Live Visualizer" text="Concurrent visual thread that renders environment updates without blocking training." %}
+    {% include feature-card.html title="Curriculum Strategy" text="Four-stage progression that scales from foundational to challenge tasks." %}
+    {% include feature-card.html title="Reproducible Experimentation" text="Structured examples, recommended checkpoints, and validated parameter ranges." %}
+  </div>
+</section>
+
+<section class="container reveal">
+  <h2>Quick Start</h2>
+  <div class="quickstart-steps">
+    <article class="panel">
+      <h3>Step 1 · Install dependencies</h3>
+      {% include code-block.html code="pip install -r requirements.txt" %}
+    </article>
+    <article class="panel">
+      <h3>Step 2 · Launch interactive lab</h3>
+      {% include code-block.html code="python ui_dashboard.py" %}
+    </article>
+    <article class="panel">
+      <h3>Step 3 · CLI training + visualizer</h3>
+      {% include code-block.html code="python train_agent.py --visualize" %}
+    </article>
+  </div>
+</section>
+
+<section class="container reveal">
+  <h2>Technology Stack</h2>
+  <div class="stack-grid">
+    <div class="stack-chip">Python</div>
+    <div class="stack-chip">Gymnasium</div>
+    <div class="stack-chip">Stable Baselines3</div>
+    <div class="stack-chip">PyGame</div>
+    <div class="stack-chip">NumPy</div>
+    <div class="stack-chip">Matplotlib</div>
+    <div class="stack-chip">Jekyll</div>
+    <div class="stack-chip">GitHub Pages</div>
+  </div>
+</section>
+
+<section class="container reveal">
+  <h2>Project Metrics</h2>
+  <div class="feature-grid">
+    <article class="feature-card"><p class="metric" data-counter="6">0</p><p>Actions in control space</p></article>
+    <article class="feature-card"><p class="metric" data-counter="4">0</p><p>Curriculum stages</p></article>
+    <article class="feature-card"><p class="metric" data-counter="5">0</p><p>Difficulty tiers in examples</p></article>
+  </div>
+</section>

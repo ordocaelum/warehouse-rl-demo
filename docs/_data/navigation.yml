@@ -1,0 +1,12 @@
+- title: Home
+  url: /
+- title: Documentation
+  url: /docs/documentation.html
+- title: Tutorial
+  url: /docs/tutorial.html
+- title: Best Practices
+  url: /docs/best-practices.html
+- title: Examples
+  url: /docs/examples.html
+- title: Reference
+  url: /docs/reference.html

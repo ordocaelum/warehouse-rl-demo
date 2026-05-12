@@ -1,0 +1,112 @@
+---
+layout: docs
+title: Best Practices
+description: Practical strategies for tuning, troubleshooting, and stable model progression.
+toc:
+  - id: getting-started
+    title: Getting Started
+  - id: curriculum
+    title: Curriculum Learning
+  - id: tuning
+    title: Parameter Tuning
+  - id: troubleshooting
+    title: Debugging
+  - id: mistakes
+    title: Common Mistakes
+  - id: cheat-sheet
+    title: Cheat Sheet
+---
+<section id="getting-started">
+  <h2>Getting Started</h2>
+  <ul>
+    <li>Start with default dashboard parameters and one-package task.</li>
+    <li>Observe at least 5-10 minutes before judging progress.</li>
+    <li>Prioritize moving-average trend over per-episode volatility.</li>
+  </ul>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Grid</th><th>Packages</th><th>Typical Reward</th><th>Training Time</th></tr></thead>
+      <tbody>
+        <tr><td>8x8</td><td>1</td><td>+8 to +10</td><td>5-10 min</td></tr>
+        <tr><td>10x10</td><td>2</td><td>+2 to +6</td><td>10-15 min</td></tr>
+        <tr><td>12x12</td><td>3</td><td>-2 to +2</td><td>15-20 min</td></tr>
+        <tr><td>15x15</td><td>5</td><td>-10 to -8</td><td>30-60 min</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="curriculum">
+  <h2>Curriculum Learning</h2>
+  <details class="collapsible" open>
+    <summary>Stage 1 · 8x8, 1 package</summary>
+    <p>Train for 100k timesteps. Save checkpoint when average reward stays above +6.</p>
+  </details>
+  <details class="collapsible">
+    <summary>Stage 2 · 10x10, 2 packages</summary>
+    <p>Train for 150k timesteps. Track multi-objective routing improvements.</p>
+  </details>
+  <details class="collapsible">
+    <summary>Stage 3 · 12x12, 3 packages</summary>
+    <p>Train for 200k timesteps. Expect noisier curve with gradual upward trend.</p>
+  </details>
+  <details class="collapsible">
+    <summary>Stage 4 · 15x15, 3-5 packages</summary>
+    <p>Train for 300k+ timesteps. Evaluate stability and delivery consistency.</p>
+  </details>
+</section>
+
+<section id="tuning">
+  <h2>Parameter Tuning</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Parameter</th><th>Baseline</th><th>Guidance</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tooltip" data-tip="State-space size drives sparse reward risk.">Grid Size</span></td><td>8-10</td><td>Increase gradually; avoid large jumps.</td></tr>
+        <tr><td><span class="tooltip" data-tip="Each package adds three observation dimensions.">Packages</span></td><td>1-2</td><td>Add only when prior stage is stable.</td></tr>
+        <tr><td><span class="tooltip" data-tip="Too few steps prevents successful delivery episodes.">Max Steps</span></td><td>200-300</td><td>Use (Grid × 20) + (Packages × 30) as a baseline.</td></tr>
+        <tr><td><span class="tooltip" data-tip="High learning rates can cause collapse.">Learning Rate</span></td><td>1e-3</td><td>Drop to 1e-4 if training oscillates heavily.</td></tr>
+        <tr><td><span class="tooltip" data-tip="Longer runs improve convergence on harder maps.">Timesteps</span></td><td>100k</td><td>Scale to 200k-300k for advanced stages.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="troubleshooting">
+  <h2>Debugging Checklist</h2>
+  <details class="collapsible" open>
+    <summary>Observation spaces do not match</summary>
+    <p>Loaded checkpoint was trained with a different package count. Match configuration before loading.</p>
+  </details>
+  <details class="collapsible">
+    <summary>Flat reward graph</summary>
+    <p>Lower difficulty, increase timesteps, and verify training loop is actively running.</p>
+  </details>
+  <details class="collapsible">
+    <summary>Low FPS during training</summary>
+    <p>Reduce map size or package count, and close competing CPU-intensive applications.</p>
+  </details>
+</section>
+
+<section id="mistakes">
+  <h2>Common Mistakes</h2>
+  <div class="feature-grid">
+    <article class="callout"><strong>Jumping to hard tasks too early</strong><p>Begin with foundational settings and scale gradually.</p></article>
+    <article class="callout"><strong>Changing parameters mid-run</strong><p>Reset stats and start a fresh session after parameter updates.</p></article>
+    <article class="callout"><strong>Expecting immediate convergence</strong><p>Allow sufficient episodes before evaluating quality.</p></article>
+    <article class="callout"><strong>Ignoring moving average</strong><p>Track trend line, not noisy episode spikes.</p></article>
+  </div>
+</section>
+
+<section id="cheat-sheet">
+  <h2>Quick Reference Cheat Sheet</h2>
+  {% include code-block.html code="First 5 minutes:
+1. python ui_dashboard.py
+2. Keep defaults
+3. Start training
+4. Watch moving-average trend" %}
+  {% include code-block.html code="First experiment:
+Grid 8, Packages 1, Max Steps 300, Timesteps 100k, LR 1e-3" %}
+  {% include code-block.html code="Scale up:
+Grid 10, Packages 2, Max Steps 300, Timesteps 150k" %}
+</section>

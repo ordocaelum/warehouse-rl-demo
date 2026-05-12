@@ -1,0 +1,12 @@
+---
+layout: default
+---
+<section class="page-shell container">
+  <header class="page-hero reveal">
+    <h1>{{ page.title }}</h1>
+    {% if page.description %}<p>{{ page.description }}</p>{% endif %}
+  </header>
+  <article class="page-content reveal">
+    {{ content }}
+  </article>
+</section>

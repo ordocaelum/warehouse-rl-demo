@@ -1,0 +1,6 @@
+<button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+<nav class="site-nav" id="site-nav">
+  {% for item in site.data.navigation %}
+  <a href="{{ item.url | relative_url }}" class="tab-link{% if page.url == item.url %} active{% endif %}">{{ item.title }}</a>
+  {% endfor %}
+</nav>
