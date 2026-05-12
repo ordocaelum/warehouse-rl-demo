@@ -1,68 +1,414 @@
----
-layout: home
-title: Home
-description: Interactive reinforcement learning lab documentation and training workflows.
----
-<section class="hero container reveal">
-  <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="Warehouse RL logo" width="120" height="120" />
-  <h1 class="title-gradient">Warehouse RL Training Lab</h1>
-  <p>Custom Gymnasium environment with DQN training, interactive visualization, and curriculum learning workflows presented in a production-grade documentation hub.</p>
-  <div class="cta-row">
-    <a class="btn primary" href="{{ '/docs/documentation.html' | relative_url }}">Read Documentation</a>
-    <a class="btn" href="{{ '/docs/tutorial.html' | relative_url }}">Start Tutorial</a>
-    <a class="btn" href="https://github.com/ordocaelum/warehouse-rl-demo">GitHub Repository</a>
-  </div>
-</section>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse RL Training Lab</title>
+    <link rel="stylesheet" href="/warehouse-rl-demo/assets/css/style.css">
+    <link rel="icon" type="image/svg+xml" href="/warehouse-rl-demo/assets/logo.svg">
+</head>
+<body>
+    <div class="scanlines"></div>
+    <header class="header">
+        <div class="container">
+            <div class="logo-section">
+                <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="30" height="30" fill="none" stroke="#00FFFF" stroke-width="2"/>
+                    <rect x="50" y="20" width="30" height="30" fill="none" stroke="#00FFFF" stroke-width="2"/>
+                    <rect x="20" y="50" width="30" height="30" fill="none" stroke="#00FFFF" stroke-width="2"/>
+                    <rect x="50" y="50" width="30" height="30" fill="none" stroke="#00FFFF" stroke-width="2"/>
+                    <circle cx="35" cy="35" r="3" fill="#00FF41"/>
+                    <circle cx="65" cy="35" r="3" fill="#00FF41"/>
+                    <circle cx="35" cy="65" r="3" fill="#00FF41"/>
+                    <circle cx="65" cy="65" r="3" fill="#00FF41"/>
+                    <line x1="35" y1="35" x2="65" y2="35" stroke="#FF00FF" stroke-width="1" opacity="0.5"/>
+                    <line x1="35" y1="65" x2="65" y2="65" stroke="#FF00FF" stroke-width="1" opacity="0.5"/>
+                </svg>
+                <h1 class="title">Warehouse RL</h1>
+            </div>
+            <nav class="nav-tabs">
+                <a href="#home" class="nav-link active" data-tab="home">Home</a>
+                <a href="#docs" class="nav-link" data-tab="docs">Documentation</a>
+                <a href="#tutorial" class="nav-link" data-tab="tutorial">Tutorial</a>
+                <a href="#practices" class="nav-link" data-tab="practices">Best Practices</a>
+                <a href="#examples" class="nav-link" data-tab="examples">Examples</a>
+                <a href="#reference" class="nav-link" data-tab="reference">Reference</a>
+            </nav>
+        </div>
+    </header>
 
-<section class="container reveal">
-  <h2>Core Capabilities</h2>
-  <div class="feature-grid">
-    {% include feature-card.html title="Custom Warehouse Environment" text="Configurable grid world with dynamic package placement and delivery constraints." %}
-    {% include feature-card.html title="DQN Training Pipeline" text="Stable Baselines3-driven Deep Q-Learning with replay buffer and epsilon schedule controls." %}
-    {% include feature-card.html title="Interactive Dashboard" text="PyGame training lab with controls, live telemetry, and pause/resume operations." %}
-    {% include feature-card.html title="Live Visualizer" text="Concurrent visual thread that renders environment updates without blocking training." %}
-    {% include feature-card.html title="Curriculum Strategy" text="Four-stage progression that scales from foundational to challenge tasks." %}
-    {% include feature-card.html title="Reproducible Experimentation" text="Structured examples, recommended checkpoints, and validated parameter ranges." %}
-  </div>
-</section>
+    <main>
+        <!-- HOME TAB -->
+        <section id="home" class="tab-content active">
+            <div class="hero">
+                <div class="container">
+                    <div class="hero-content">
+                        <h2 class="hero-title">Deep Q-Learning Simulation</h2>
+                        <p class="hero-subtitle">An interactive gymnasium environment for reinforcement learning experimentation</p>
+                        <div class="hero-buttons">
+                            <button class="btn btn-primary" onclick="document.querySelector('[data-tab=\'docs\']').click()">Get Started</button>
+                            <a href="https://github.com/ordocaelum/warehouse-rl-demo" class="btn btn-secondary">View on GitHub</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-<section class="container reveal">
-  <h2>Quick Start</h2>
-  <div class="quickstart-steps">
-    <article class="panel">
-      <h3>Step 1 · Install dependencies</h3>
-      {% include code-block.html code="pip install -r requirements.txt" %}
-    </article>
-    <article class="panel">
-      <h3>Step 2 · Launch interactive lab</h3>
-      {% include code-block.html code="python ui_dashboard.py" %}
-    </article>
-    <article class="panel">
-      <h3>Step 3 · CLI training + visualizer</h3>
-      {% include code-block.html code="python train_agent.py --visualize" %}
-    </article>
-  </div>
-</section>
+            <section class="features">
+                <div class="container">
+                    <h3>Core Capabilities</h3>
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">1</div>
+                            <h4>Interactive Training Lab</h4>
+                            <p>PyGame UI with live visualization and full parameter control</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">2</div>
+                            <h4>DQN Agent</h4>
+                            <p>Deep Q-Network with replay buffer and epsilon decay</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">3</div>
+                            <h4>Real-time Metrics</h4>
+                            <p>Live reward graphs, moving averages, and performance tracking</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">4</div>
+                            <h4>Model Management</h4>
+                            <p>Save, load, and transfer learning between configurations</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">5</div>
+                            <h4>Curriculum Learning</h4>
+                            <p>4-stage progression from simple to complex tasks</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">6</div>
+                            <h4>Fully Customizable</h4>
+                            <p>Grid size, packages, learning rate, and more</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-<section class="container reveal">
-  <h2>Technology Stack</h2>
-  <div class="stack-grid">
-    <div class="stack-chip">Python</div>
-    <div class="stack-chip">Gymnasium</div>
-    <div class="stack-chip">Stable Baselines3</div>
-    <div class="stack-chip">PyGame</div>
-    <div class="stack-chip">NumPy</div>
-    <div class="stack-chip">Matplotlib</div>
-    <div class="stack-chip">Jekyll</div>
-    <div class="stack-chip">GitHub Pages</div>
-  </div>
-</section>
+            <section class="quick-start">
+                <div class="container">
+                    <h3>Quick Start</h3>
+                    <div class="steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h4>Clone Repository</h4>
+                                <div class="code-block">
+                                    <code>git clone https://github.com/ordocaelum/warehouse-rl-demo.git</code>
+                                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h4>Install Dependencies</h4>
+                                <div class="code-block">
+                                    <code>pip install -r requirements.txt</code>
+                                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h4>Launch Training Lab</h4>
+                                <div class="code-block">
+                                    <code>python ui_dashboard.py</code>
+                                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
 
-<section class="container reveal">
-  <h2>Project Metrics</h2>
-  <div class="feature-grid">
-    <article class="feature-card"><p class="metric" data-counter="6">0</p><p>Actions in control space</p></article>
-    <article class="feature-card"><p class="metric" data-counter="4">0</p><p>Curriculum stages</p></article>
-    <article class="feature-card"><p class="metric" data-counter="5">0</p><p>Difficulty tiers in examples</p></article>
-  </div>
-</section>
+        <!-- DOCUMENTATION TAB -->
+        <section id="docs" class="tab-content">
+            <div class="container">
+                <h2>Documentation</h2>
+                <div class="docs-content">
+                    <h3>Interactive Training Lab</h3>
+                    <p>Launch the full-featured interactive UI with all parameter controls.</p>
+                    <div class="code-block">
+                        <code>python ui_dashboard.py</code>
+                    </div>
+                    
+                    <h4>Left Panel: Parameter Controls</h4>
+                    <table class="params-table">
+                        <thead>
+                            <tr><th>Parameter</th><th>Range</th><th>Default</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Grid Size</td><td>6-15</td><td>8</td><td>Warehouse grid dimensions</td></tr>
+                            <tr><td>Packages</td><td>1-5</td><td>1</td><td>Number of packages to deliver</td></tr>
+                            <tr><td>Max Steps</td><td>100-500</td><td>300</td><td>Episode step limit</td></tr>
+                            <tr><td>Timesteps (k)</td><td>10k-500k</td><td>100k</td><td>Total training timesteps</td></tr>
+                            <tr><td>Learning Rate</td><td>1e-4 to 1e-2</td><td>1e-3</td><td>DQN learning rate</td></tr>
+                            <tr><td>Init Epsilon</td><td>0.5-1.0</td><td>1.0</td><td>Starting exploration rate</td></tr>
+                            <tr><td>Final Epsilon</td><td>0.01-0.3</td><td>0.1</td><td>Ending exploration rate</td></tr>
+                            <tr><td>Buffer (k)</td><td>1k-50k</td><td>10k</td><td>Replay buffer size</td></tr>
+                            <tr><td>Step Cost</td><td>0.01-0.5</td><td>0.05</td><td>Per-step reward penalty</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Environment Details</h4>
+                    <h5>Action Space</h5>
+                    <table class="params-table">
+                        <thead>
+                            <tr><th>Action</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>0</td><td>Move up</td></tr>
+                            <tr><td>1</td><td>Move down</td></tr>
+                            <tr><td>2</td><td>Move left</td></tr>
+                            <tr><td>3</td><td>Move right</td></tr>
+                            <tr><td>4</td><td>Pickup package</td></tr>
+                            <tr><td>5</td><td>Dropoff package</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h5>Reward Structure</h5>
+                    <ul>
+                        <li><strong>+10</strong> for delivering a package to delivery zone</li>
+                        <li><strong>+1</strong> for picking up a package</li>
+                        <li><strong>+0.1</strong> bonus for steps reducing distance to nearest package</li>
+                        <li><strong>-0.01 × distance</strong> per step away from nearest package</li>
+                        <li><strong>-0.05</strong> per step (exploration penalty)</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- TUTORIAL TAB -->
+        <section id="tutorial" class="tab-content">
+            <div class="container">
+                <h2>Curriculum Learning Tutorial</h2>
+                <p class="section-intro">Master reinforcement learning by following a proven 4-stage progression from simple to complex tasks.</p>
+                
+                <div class="curriculum-stages">
+                    <div class="stage-card stage-1">
+                        <div class="stage-number">Stage 1</div>
+                        <h3>Master the Basics</h3>
+                        <div class="stage-params">
+                            <p><strong>Configuration:</strong></p>
+                            <ul>
+                                <li>Grid: 8×8</li>
+                                <li>Packages: 1</li>
+                                <li>Timesteps: 100k</li>
+                            </ul>
+                        </div>
+                        <p class="stage-desc">Agent learns core mechanics: navigation, pickup, delivery</p>
+                        <p class="stage-reward">Expected Reward: +8 to +10</p>
+                        <p class="stage-time">Training Time: 5-10 minutes</p>
+                    </div>
+
+                    <div class="stage-card stage-2">
+                        <div class="stage-number">Stage 2</div>
+                        <h3>Add Complexity</h3>
+                        <div class="stage-params">
+                            <p><strong>Configuration:</strong></p>
+                            <ul>
+                                <li>Grid: 10×10</li>
+                                <li>Packages: 2</li>
+                                <li>Timesteps: 150k</li>
+                            </ul>
+                        </div>
+                        <p class="stage-desc">Agent learns multi-objective planning and route optimization</p>
+                        <p class="stage-reward">Expected Reward: +2 to +6</p>
+                        <p class="stage-time">Training Time: 10-15 minutes</p>
+                    </div>
+
+                    <div class="stage-card stage-3">
+                        <div class="stage-number">Stage 3</div>
+                        <h3>Scale Up</h3>
+                        <div class="stage-params">
+                            <p><strong>Configuration:</strong></p>
+                            <ul>
+                                <li>Grid: 12×12</li>
+                                <li>Packages: 3</li>
+                                <li>Timesteps: 200k</li>
+                            </ul>
+                        </div>
+                        <p class="stage-desc">Agent learns to handle larger environments and more objectives</p>
+                        <p class="stage-reward">Expected Reward: -2 to +2</p>
+                        <p class="stage-time">Training Time: 15-20 minutes</p>
+                    </div>
+
+                    <div class="stage-card stage-4">
+                        <div class="stage-number">Stage 4</div>
+                        <h3>Challenge</h3>
+                        <div class="stage-params">
+                            <p><strong>Configuration:</strong></p>
+                            <ul>
+                                <li>Grid: 15×15</li>
+                                <li>Packages: 3-5</li>
+                                <li>Timesteps: 300k+</li>
+                            </ul>
+                        </div>
+                        <p class="stage-desc">Agent tackles complex real-world scenarios with many objectives</p>
+                        <p class="stage-reward">Expected Reward: -6 to -12</p>
+                        <p class="stage-time">Training Time: 30-60 minutes</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BEST PRACTICES TAB -->
+        <section id="practices" class="tab-content">
+            <div class="container">
+                <h2>Best Practices</h2>
+                <div class="practices-content">
+                    <div class="collapsible-section">
+                        <h3 class="collapsible-header" onclick="toggleCollapsible(this)">Parameter Tuning Guidelines</h3>
+                        <div class="collapsible-body">
+                            <h4>Learning Rate</h4>
+                            <p><strong>1e-4:</strong> Stable but slow learning</p>
+                            <p><strong>1e-3:</strong> Balanced (recommended)</p>
+                            <p><strong>1e-2:</strong> Fast but unstable</p>
+                            
+                            <h4>Timesteps</h4>
+                            <p><strong>50k:</strong> Quick experiments</p>
+                            <p><strong>100k:</strong> Standard baseline</p>
+                            <p><strong>200k+:</strong> For convergence</p>
+                        </div>
+                    </div>
+
+                    <div class="collapsible-section">
+                        <h3 class="collapsible-header" onclick="toggleCollapsible(this)">Common Mistakes to Avoid</h3>
+                        <div class="collapsible-body">
+                            <div class="mistake">
+                                <h4>Mistake 1: Jumping to Hard Tasks Too Early</h4>
+                                <p>Start with 8×8, 1 package. Master it. Then scale up gradually.</p>
+                            </div>
+                            <div class="mistake">
+                                <h4>Mistake 2: Changing Parameters Mid-Training</h4>
+                                <p>Set all parameters first, then click START. Don't adjust during training.</p>
+                            </div>
+                            <div class="mistake">
+                                <h4>Mistake 3: Expecting Immediate Results</h4>
+                                <p>Train for at least 10 minutes before evaluating. Learning takes time.</p>
+                            </div>
+                            <div class="mistake">
+                                <h4>Mistake 4: Ignoring the Moving Average</h4>
+                                <p>Watch the orange trend line, not the noisy blue episode rewards.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="collapsible-section">
+                        <h3 class="collapsible-header" onclick="toggleCollapsible(this)">Model Management</h3>
+                        <div class="collapsible-body">
+                            <h4>When to Save</h4>
+                            <ul>
+                                <li>When moving average plateaus</li>
+                                <li>Before trying new configurations</li>
+                                <li>After significant improvements</li>
+                            </ul>
+                            <h4>Transfer Learning</h4>
+                            <p>Load a model trained on 8×8, 1pkg into 10×10, 2pkg for faster learning.</p>
+                            <p><strong>Important:</strong> Only load into SAME environment config, or train fresh on new config.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- EXAMPLES TAB -->
+        <section id="examples" class="tab-content">
+            <div class="container">
+                <h2>Configuration Examples</h2>
+                <div class="examples-grid">
+                    <div class="example-card">
+                        <h3>Beginner Setup</h3>
+                        <ul>
+                            <li>Grid: 8×8</li>
+                            <li>Packages: 1</li>
+                            <li>Timesteps: 100k</li>
+                            <li>Learning Rate: 1e-3</li>
+                        </ul>
+                        <p>Expected reward: +8 to +10</p>
+                        <p>Perfect for learning the basics</p>
+                    </div>
+                    <div class="example-card">
+                        <h3>Intermediate Setup</h3>
+                        <ul>
+                            <li>Grid: 10×10</li>
+                            <li>Packages: 2</li>
+                            <li>Timesteps: 150k</li>
+                            <li>Learning Rate: 1e-3</li>
+                        </ul>
+                        <p>Expected reward: +2 to +6</p>
+                        <p>Good for multi-objective learning</p>
+                    </div>
+                    <div class="example-card">
+                        <h3>Advanced Setup</h3>
+                        <ul>
+                            <li>Grid: 15×15</li>
+                            <li>Packages: 5</li>
+                            <li>Timesteps: 300k</li>
+                            <li>Learning Rate: 1e-3</li>
+                        </ul>
+                        <p>Expected reward: -8 to -12</p>
+                        <p>Challenge yourself with complex scenarios</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- REFERENCE TAB -->
+        <section id="reference" class="tab-content">
+            <div class="container">
+                <h2>Technical Reference</h2>
+                <div class="reference-content">
+                    <h3>Observation Space</h3>
+                    <p>For N packages, observation is (3 + 3N) dimensional:</p>
+                    <ul>
+                        <li>Agent X position</li>
+                        <li>Agent Y position</li>
+                        <li>Carrying status (0 or 1)</li>
+                        <li>For each package: X, Y, delivery_status</li>
+                    </ul>
+
+                    <h3>DQN Parameters</h3>
+                    <ul>
+                        <li>Learning rate: 1e-3 (adjustable)</li>
+                        <li>Replay buffer size: 10k (adjustable)</li>
+                        <li>Target update interval: 500 steps</li>
+                        <li>Exploration fraction: 20% of training</li>
+                    </ul>
+
+                    <h3>Keyboard Shortcuts</h3>
+                    <table class="params-table">
+                        <thead>
+                            <tr><th>Key</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>SPACE</td><td>Pause/Resume training</td></tr>
+                            <tr><td>S</td><td>Save model</td></tr>
+                            <tr><td>R</td><td>Reset stats</td></tr>
+                            <tr><td>Q / ESC</td><td>Exit</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>Warehouse RL Training Lab - Deep Q-Learning Simulation Environment</p>
+            <p><a href="https://github.com/ordocaelum/warehouse-rl-demo">View on GitHub</a> | Built with PyGame, Gymnasium, and Stable Baselines3</p>
+        </div>
+    </footer>
+
+    <script src="/warehouse-rl-demo/assets/js/main.js"></script>
+</body>
+</html>
