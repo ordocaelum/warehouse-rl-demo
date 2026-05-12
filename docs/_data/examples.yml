@@ -1,0 +1,32 @@
+- name: Foundational Task
+  grid: 8x8
+  packages: 1
+  max_steps: 300
+  timesteps: 100k
+  learning_rate: 1e-3
+  expected_reward: "+8 to +10"
+  notes: Fast convergence and stable delivery behavior.
+- name: Intermediate Multi-Objective
+  grid: 10x10
+  packages: 2
+  max_steps: 300
+  timesteps: 150k
+  learning_rate: 1e-3
+  expected_reward: "+2 to +6"
+  notes: Learns package prioritization and route ordering.
+- name: Advanced Planning
+  grid: 12x12
+  packages: 3
+  max_steps: 300
+  timesteps: 200k
+  learning_rate: 1e-3
+  expected_reward: "-2 to +2"
+  notes: Larger map and denser objective management.
+- name: Challenge Mode
+  grid: 15x15
+  packages: 5
+  max_steps: 221
+  timesteps: 300k+
+  learning_rate: 1e-3
+  expected_reward: "-8 to -12"
+  notes: Long horizon navigation with sparse rewards.

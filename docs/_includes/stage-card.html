@@ -1,0 +1,12 @@
+<article class="stage-card reveal">
+  <header>
+    <span class="stage-index">Stage {{ include.stage }}</span>
+    <h3>{{ include.title }}</h3>
+  </header>
+  <p>{{ include.text }}</p>
+  <ul>
+    {% for item in include.points %}
+    <li>{{ item }}</li>
+    {% endfor %}
+  </ul>
+</article>

@@ -1,0 +1,60 @@
+---
+layout: docs
+title: Tutorial
+description: Curriculum learning walkthrough with stage progression, targets, and checkpoints.
+toc:
+  - id: progression
+    title: 4-Stage Progression
+  - id: parameters
+    title: Stage Parameters
+  - id: expected-results
+    title: Expected Results
+  - id: checkpoints
+    title: Milestones
+---
+<section id="progression">
+  <h2>4-Stage Curriculum Progression</h2>
+  <div class="stage-grid">
+    {% assign stage1 = "8x8 grid|1 package|100k timesteps|Reward target +8 to +10" | split: "|" %}
+    {% include stage-card.html stage="1" title="Master the Basics" text="Learn navigation, pickup, and dropoff mechanics under dense reward feedback." points=stage1 %}
+    {% assign stage2 = "10x10 grid|2 packages|150k timesteps|Reward target +2 to +6" | split: "|" %}
+    {% include stage-card.html stage="2" title="Add Package Coordination" text="Expand policy from single objective to multi-objective planning." points=stage2 %}
+    {% assign stage3 = "12x12 grid|3 packages|200k timesteps|Reward target -2 to +2" | split: "|" %}
+    {% include stage-card.html stage="3" title="Scale Planning Depth" text="Handle larger state space and tighter episode constraints." points=stage3 %}
+    {% assign stage4 = "15x15 grid|3-5 packages|300k+ timesteps|Reward target -4 to -12" | split: "|" %}
+    {% include stage-card.html stage="4" title="Challenge Mode" text="Deploy learned representations into sparse and noisy reward conditions." points=stage4 %}
+  </div>
+</section>
+
+<section id="parameters">
+  <h2>Recommended Parameters Per Stage</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Stage</th><th>Grid</th><th>Packages</th><th>Max Steps</th><th>Timesteps</th><th>Learning Rate</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>8</td><td>1</td><td>300</td><td>100k</td><td>1e-3</td></tr>
+        <tr><td>2</td><td>10</td><td>2</td><td>300</td><td>150k</td><td>1e-3</td></tr>
+        <tr><td>3</td><td>12</td><td>3</td><td>300</td><td>200k</td><td>1e-3</td></tr>
+        <tr><td>4</td><td>15</td><td>3-5</td><td>221</td><td>300k+</td><td>1e-3</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="expected-results">
+  <h2>Expected Results and Learning Curves</h2>
+  <p>As environment complexity rises, absolute average reward declines while policy quality can still improve. Focus on moving-average trend direction instead of raw single-episode values.</p>
+  <div class="callout">
+    <strong>Signal to track:</strong> 50-episode moving average should rise or stabilize at each stage before progression.
+  </div>
+</section>
+
+<section id="checkpoints">
+  <h2>Checkpoint Milestones</h2>
+  <ul>
+    <li>Stage 1 complete when average reward exceeds +6 consistently.</li>
+    <li>Stage 2 complete when degradation stops and two-package deliveries occur.</li>
+    <li>Stage 3 complete when moving average trends upward despite noise.</li>
+    <li>Stage 4 complete when reward variance narrows and delivery frequency increases.</li>
+  </ul>
+</section>

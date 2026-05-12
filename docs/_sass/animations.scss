@@ -1,0 +1,9 @@
+.reveal { opacity: 0; transform: translateY(10px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.feature-card, .stage-card, .btn, .stack-chip, .example-card { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
+.feature-card:hover, .stage-card:hover, .stack-chip:hover, .example-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--cyan);
+  box-shadow: var(--glow);
+}
+.metric { font-size: 1.8rem; color: var(--lime); font-weight: 700; }

@@ -1,0 +1,12 @@
+title: Warehouse RL Training Lab
+description: Reinforcement learning training lab for warehouse logistics with a synth-inspired docs experience.
+baseurl: "/warehouse-rl-demo"
+url: "https://ordocaelum.github.io"
+markdown: kramdown
+highlighter: rouge
+permalink: pretty
+sass:
+  sass_dir: _sass
+  style: compressed
+kramdown:
+  input: GFM

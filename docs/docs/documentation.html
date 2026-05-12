@@ -1,0 +1,117 @@
+---
+layout: docs
+title: Documentation
+description: Full technical guide for setup, usage, controls, and environment details.
+toc:
+  - id: installation
+    title: Installation
+  - id: interactive-lab
+    title: Interactive Lab UI
+  - id: cli-training
+    title: CLI Training
+  - id: visualizer
+    title: Live Visualizer
+  - id: customization
+    title: Customization
+  - id: environment-details
+    title: Environment Details
+---
+<section id="installation">
+  <h2>Installation</h2>
+  <ol>
+    <li>Clone repository and enter project directory.</li>
+    <li>Create and activate virtual environment.</li>
+    <li>Install dependencies from requirements file.</li>
+  </ol>
+  {% include code-block.html code="git clone https://github.com/ordocaelum/warehouse-rl-demo.git
+cd warehouse-rl-demo
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt" %}
+</section>
+
+<section id="interactive-lab">
+  <h2>Interactive Training Lab</h2>
+  <p>Launch the dashboard to train and monitor the agent with direct control over environment and optimization parameters.</p>
+  {% include code-block.html code="python ui_dashboard.py" %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Slider</th><th>Range</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Grid Size</td><td>6-15</td><td>8</td><td>Warehouse dimensions</td></tr>
+        <tr><td>Packages</td><td>1-5</td><td>1</td><td>Packages to deliver</td></tr>
+        <tr><td>Max Steps</td><td>100-500</td><td>300</td><td>Episode step limit</td></tr>
+        <tr><td>Timesteps</td><td>10k-500k</td><td>100k</td><td>Total training timesteps</td></tr>
+        <tr><td>Learning Rate</td><td>1e-4-1e-2</td><td>1e-3</td><td>DQN update step size</td></tr>
+        <tr><td>Init Epsilon</td><td>0.5-1.0</td><td>1.0</td><td>Initial exploration probability</td></tr>
+        <tr><td>Final Epsilon</td><td>0.01-0.3</td><td>0.1</td><td>Final exploration floor</td></tr>
+        <tr><td>Buffer</td><td>1k-50k</td><td>10k</td><td>Replay memory size</td></tr>
+        <tr><td>Step Cost</td><td>0.01-0.5</td><td>0.05</td><td>Per-step penalty</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="cli-training">
+  <h2>Command-Line Training</h2>
+  {% include code-block.html code="python train_agent.py" %}
+  <ul>
+    <li>Trains DQN for default 100,000 timesteps.</li>
+    <li>Saves model as <code>warehouse_dqn_model.zip</code>.</li>
+    <li>Generates <code>training_progress.png</code>.</li>
+    <li>Runs inference test episodes.</li>
+  </ul>
+</section>
+
+<section id="visualizer">
+  <h2>Live Visualizer</h2>
+  {% include code-block.html code="python train_agent.py --visualize" %}
+  <p>The visualizer runs on a background daemon thread and consumes queue-based state updates to avoid blocking training execution.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Control</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>Space</td><td>Pause or resume training</td></tr>
+        <tr><td>S (while paused)</td><td>Step one episode</td></tr>
+        <tr><td>Arrow Up/Down or mouse wheel</td><td>Zoom</td></tr>
+        <tr><td>Mouse drag</td><td>Pan grid</td></tr>
+        <tr><td>R</td><td>Reset zoom and pan</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="customization">
+  <h2>Customization</h2>
+  {% include code-block.html code="train_agent(total_timesteps=200000, grid_size=10, num_packages=2, max_steps=400, learning_rate=5e-4)
+env = WarehouseEnv(grid_size=10, num_packages=3)
+env = WarehouseEnv(max_steps=400, step_cost=0.02)" %}
+</section>
+
+<section id="environment-details">
+  <h2>Environment Details</h2>
+  <h3>Action Space</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Action</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>Move up</td></tr>
+        <tr><td>1</td><td>Move down</td></tr>
+        <tr><td>2</td><td>Move left</td></tr>
+        <tr><td>3</td><td>Move right</td></tr>
+        <tr><td>4</td><td>Pick up package</td></tr>
+        <tr><td>5</td><td>Drop off package</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Observation Space</h3>
+  <p>For one package: six dimensions (agent x/y, carrying status, package x/y, delivered status). Additional packages append three dimensions each.</p>
+  <h3>Reward Structure</h3>
+  <ul>
+    <li>+10 deliver package</li>
+    <li>+1 pick up package</li>
+    <li>+0.1 per step reducing nearest-package distance</li>
+    <li>-0.01 multiplied by nearest package distance</li>
+    <li>-0.05 per step as baseline movement penalty</li>
+  </ul>
+</section>

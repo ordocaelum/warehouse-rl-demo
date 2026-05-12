@@ -1,0 +1,76 @@
+---
+layout: docs
+title: Reference
+description: Action and observation spaces, reward design, DQN defaults, and environment behavior.
+toc:
+  - id: action-space
+    title: Action Space
+  - id: observation-space
+    title: Observation Space
+  - id: reward-structure
+    title: Reward Structure
+  - id: dqn-parameters
+    title: DQN Parameters
+  - id: environment
+    title: Environment Details
+---
+<section id="action-space">
+  <h2>Action Space</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>Move up</td></tr>
+        <tr><td>1</td><td>Move down</td></tr>
+        <tr><td>2</td><td>Move left</td></tr>
+        <tr><td>3</td><td>Move right</td></tr>
+        <tr><td>4</td><td>Pickup package</td></tr>
+        <tr><td>5</td><td>Dropoff package</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="observation-space">
+  <h2>Observation Space</h2>
+  <p>Observation vector format:</p>
+  {% include code-block.html code="[agent_x, agent_y, carrying, package_1_x, package_1_y, package_1_delivered, ...]" %}
+  <p>Each additional package contributes three fields: x coordinate, y coordinate, delivered flag.</p>
+</section>
+
+<section id="reward-structure">
+  <h2>Reward Structure</h2>
+  <ul>
+    <li>Delivery bonus: +10</li>
+    <li>Pickup reward: +1</li>
+    <li>Distance reduction bonus: +0.1</li>
+    <li>Distance penalty: -0.01 multiplied by nearest package distance</li>
+    <li>Step cost: -0.05 default</li>
+  </ul>
+</section>
+
+<section id="dqn-parameters">
+  <h2>DQN Parameters</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Parameter</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Learning rate</td><td>1e-3</td><td>Primary optimization sensitivity control</td></tr>
+        <tr><td>Replay buffer</td><td>10k</td><td>Increase for larger environments</td></tr>
+        <tr><td>Initial epsilon</td><td>1.0</td><td>Full exploration at start</td></tr>
+        <tr><td>Final epsilon</td><td>0.1</td><td>Residual exploration after decay</td></tr>
+        <tr><td>Total timesteps</td><td>100k</td><td>Scale with complexity</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="environment">
+  <h2>Environment Details</h2>
+  <ul>
+    <li>Grid-world delivery environment with configurable dimensions and package count.</li>
+    <li>Delivery zone fixed to bottom-right corner by default.</li>
+    <li>Episode termination controlled by delivery completion or max steps.</li>
+    <li>Dashboard and visualizer provide real-time trajectory and reward diagnostics.</li>
+  </ul>
+</section>

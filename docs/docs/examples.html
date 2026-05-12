@@ -1,0 +1,44 @@
+---
+layout: docs
+title: Examples
+description: Preset difficulty configurations with expected reward ranges and comparison guidance.
+toc:
+  - id: configurations
+    title: Configurations
+  - id: comparison
+    title: Visual Comparison
+---
+<section id="configurations">
+  <h2>Difficulty Configurations</h2>
+  <div class="example-grid">
+    {% for ex in site.data.examples %}
+    <article class="example-card reveal">
+      <h3>{{ ex.name }}</h3>
+      <p class="muted">Grid {{ ex.grid }} · Packages {{ ex.packages }}</p>
+      <ul>
+        <li>Max steps: {{ ex.max_steps }}</li>
+        <li>Timesteps: {{ ex.timesteps }}</li>
+        <li>Learning rate: {{ ex.learning_rate }}</li>
+      </ul>
+      <p><strong>Expected reward:</strong> {{ ex.expected_reward }}</p>
+      <p>{{ ex.notes }}</p>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="comparison">
+  <h2>Expected Result Comparison</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Preset</th><th>Complexity</th><th>Reward Signal Density</th><th>Convergence Speed</th></tr></thead>
+      <tbody>
+        <tr><td>8x8 / 1 package</td><td>Low</td><td>High</td><td>Fast</td></tr>
+        <tr><td>10x10 / 2 packages</td><td>Medium</td><td>Medium</td><td>Moderate</td></tr>
+        <tr><td>12x12 / 3 packages</td><td>High</td><td>Medium-low</td><td>Slow</td></tr>
+        <tr><td>15x15 / 5 packages</td><td>Very high</td><td>Low</td><td>Slowest</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Use these presets to document run outcomes and compare training behavior across difficulty tiers.</p>
+</section>
