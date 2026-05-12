@@ -23,7 +23,7 @@ class RewardCallback(BaseCallback):
         
         return True
 
-def train_agent(total_timesteps: int = 50000):
+def train_agent(total_timesteps: int = 100000):
     """Train DQN agent on warehouse environment."""
     
     # Create environment
@@ -36,11 +36,11 @@ def train_agent(total_timesteps: int = 50000):
         env,
         learning_rate=1e-3,
         buffer_size=10000,
-        learning_starts=1000,
-        target_update_interval=1000,
-        exploration_fraction=0.1,
+        learning_starts=500,
+        target_update_interval=500,
+        exploration_fraction=0.2,
         exploration_initial_eps=1.0,
-        exploration_final_eps=0.05,
+        exploration_final_eps=0.1,
         verbose=1
     )
     
@@ -103,7 +103,7 @@ def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3):
 if __name__ == "__main__":
     # Train agent
     print("Training agent...")
-    model, callback, env = train_agent(total_timesteps=50000)
+    model, callback, env = train_agent(total_timesteps=100000)
     
     # Visualize
     print("Plotting training progress...")
