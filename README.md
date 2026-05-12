@@ -4,7 +4,7 @@ A reinforcement learning environment for warehouse logistics simulations built w
 
 ## Features
 
-- **Custom Gymnasium Environment**: 10x10 grid-based warehouse with dynamic package placement
+- **Custom Gymnasium Environment**: 8x8 grid-based warehouse with dynamic package placement
 - **DQN Agent**: Q-learning based deep neural network agent for autonomous decision-making
 - **Reward Shaping**: Incentivizes efficient package delivery with step penalties and delivery bonuses
 - **Training Visualization**: Real-time performance tracking with matplotlib plots
@@ -72,11 +72,11 @@ test_agent(num_episodes=5)
 Edit environment parameters in `warehouse_env.py`:
 
 ```python
-# Larger grid
-env = WarehouseEnv(grid_size=15, num_packages=5)
+# Larger grid with more packages (once basic task is mastered)
+env = WarehouseEnv(grid_size=10, num_packages=3)
 
 # Adjust max steps per episode
-self.max_steps = 300
+self.max_steps = 400
 
 # Modify reward values
 reward += 15  # Higher delivery reward
@@ -97,29 +97,30 @@ reward += 15  # Higher delivery reward
 
 ### Observation Space
 
-14-dimensional vector (for 3 packages):
+6-dimensional vector (for 1 package):
 - Agent X, Y position (2 dims)
 - Currently carrying package (1 dim, 0/1)
-- Package 1-3: X, Y, delivery status (9 dims)
+- Package 1: X, Y, delivery status (3 dims)
 
 ### Reward Structure
 
 - **+10** for delivering a package to the delivery zone
 - **+1** for picking up a package
-- **-0.1** per step (encourages efficiency)
+- **+0.1** bonus for each step that reduces distance to nearest package
+- **-0.01 × distance** per step to penalize being far from the nearest package
+- **-0.05** per step (reduced from -0.1 for gentler exploration penalty)
 
 ### Grid Layout
 
 ```
-D . . . . . . . . .
-. 1 . . . . . . . .
-. . 2 . . . . . . .
-. . . . . . . . . .
-. . . . A . . . . .
-. . . . . . . . . .
-. 3 . . . . . . . .
-. . . . . . . . . .
-. . . . . . . . . D
+. . . . . . . .
+. 1 . . . . . .
+. . . . . . . .
+. . . A . . . .
+. . . . . . . .
+. . . . . . . .
+. . . . . . . .
+. . . . . . . D
 ```
 
 - **A** = Agent (lowercase 'a' when carrying)

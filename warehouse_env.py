@@ -5,15 +5,16 @@ from typing import Tuple, Dict, Any
 
 class WarehouseEnv(gym.Env):
     """
-    Simple warehouse grid environment.
-    - Grid size: 10x10
-    - Agent moves packages from spawn to delivery zones
-    - Reward: +10 for delivery, -0.1 per step (encourages efficiency)
+    Simplified warehouse grid environment for easier learning.
+    - Grid size: 8x8 (smaller search space)
+    - Single package delivery (focus on core task)
+    - Better reward shaping with distance-based guidance
+    - Reward: +10 for delivery, +1 for pickup, -0.05 per step
     """
     
     metadata = {"render_modes": ["human"]}
     
-    def __init__(self, grid_size: int = 10, num_packages: int = 3):
+    def __init__(self, grid_size: int = 8, num_packages: int = 1):
         super().__init__()
         self.grid_size = grid_size
         self.num_packages = num_packages
@@ -22,7 +23,7 @@ class WarehouseEnv(gym.Env):
         self.action_space = spaces.Discrete(6)
         
         # State space: [agent_x, agent_y, carrying, package1_x, package1_y, package1_delivered, ...]
-        # For 3 packages: agent_pos(2) + carrying(1) + packages(3*(2+1)) = 14 dims
+        # For 1 package: agent_pos(2) + carrying(1) + packages(1*(2+1)) = 6 dims
         state_dim = 2 + 1 + (num_packages * 3)
         self.observation_space = spaces.Box(
             low=0, 
@@ -39,7 +40,8 @@ class WarehouseEnv(gym.Env):
         
         self._init_packages()
         self.step_count = 0
-        self.max_steps = 200
+        self.max_steps = 300  # Increased from 200 for more time to learn
+        self.last_distance = self._get_nearest_package_distance()  # For distance-based reward shaping
     
     def _init_packages(self):
         """Randomly place packages in the grid."""
@@ -48,7 +50,18 @@ class WarehouseEnv(gym.Env):
             x = np.random.randint(1, self.grid_size - 1)
             y = np.random.randint(1, self.grid_size - 1)
             self.packages.append([x, y, 0])  # [x, y, delivered]
-    
+        self.last_distance = float('inf')
+
+    def _get_nearest_package_distance(self) -> float:
+        """Calculate Manhattan distance to nearest undelivered package."""
+        undelivered = [pkg for pkg in self.packages if not pkg[2]]
+        if not undelivered:
+            return 0.0
+        return float(min(
+            abs(self.agent_pos[0] - pkg[0]) + abs(self.agent_pos[1] - pkg[1])
+            for pkg in undelivered
+        ))
+
     def _get_obs(self) -> np.ndarray:
         """Flatten state into observation vector."""
         obs = [self.agent_pos[0], self.agent_pos[1], float(self.carrying >= 0)]
@@ -63,14 +76,15 @@ class WarehouseEnv(gym.Env):
         self.carrying = -1
         self._init_packages()
         self.step_count = 0
+        self.last_distance = self._get_nearest_package_distance()
         return self._get_obs(), {}
     
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """
-        Execute one step.
+        Execute one step with improved reward shaping.
         Returns: observation, reward, terminated, truncated, info
         """
-        reward = -0.1  # Step cost
+        reward = -0.05  # Reduced step cost from -0.1 to -0.05
         
         # Movement actions
         if action == 0:  # up
@@ -99,6 +113,14 @@ class WarehouseEnv(gym.Env):
                     pkg[2] = 1  # Mark delivered
                     reward += 10  # Delivery reward
                     self.carrying = -1
+        
+        # Distance-based reward shaping: only during exploration (not carrying)
+        if self.carrying == -1 and action in (0, 1, 2, 3):
+            current_distance = self._get_nearest_package_distance()
+            if current_distance < self.last_distance:
+                reward += 0.1  # Bonus for moving closer to package
+            reward -= 0.01 * current_distance  # Penalize proportionally to distance
+            self.last_distance = current_distance
         
         self.step_count += 1
         terminated = all(pkg[2] for pkg in self.packages)  # All packages delivered
