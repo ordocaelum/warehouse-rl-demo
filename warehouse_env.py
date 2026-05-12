@@ -41,7 +41,7 @@ class WarehouseEnv(gym.Env):
         self._init_packages()
         self.step_count = 0
         self.max_steps = 300  # Increased from 200 for more time to learn
-        self.last_distance = float('inf')  # For distance-based reward shaping
+        self.last_distance = self._get_nearest_package_distance()  # For distance-based reward shaping
     
     def _init_packages(self):
         """Randomly place packages in the grid."""
@@ -103,7 +103,6 @@ class WarehouseEnv(gym.Env):
                     if (self.agent_pos == pkg[:2]).all() and not pkg[2]:
                         self.carrying = i
                         reward += 1  # Pickup reward
-                        self.last_distance = float('inf')  # Reset for delivery phase
                         break
         
         # Dropoff action
