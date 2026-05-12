@@ -52,7 +52,7 @@ python train_agent.py
 
 This will:
 - Initialize a DQN agent with Q-learning principles
-- Train for 50,000 timesteps
+- Train for 100,000 timesteps
 - Save the trained model as `warehouse_dqn_model.zip`
 - Generate `training_progress.png` showing reward curves
 - Test the agent on 3 episodes
@@ -133,10 +133,11 @@ D . . . . . . . . .
 DQN(
     learning_rate=1e-3,           # Learning rate
     buffer_size=10000,            # Replay buffer size
-    learning_starts=1000,         # Steps before training starts
-    target_update_interval=1000,  # Update target network every N steps
+    learning_starts=500,          # Steps before training starts
+    target_update_interval=500,   # Update target network every N steps
+    exploration_fraction=0.2,     # Explore for 20% of training
     exploration_initial_eps=1.0,  # Start with 100% exploration
-    exploration_final_eps=0.05,   # End with 5% exploration
+    exploration_final_eps=0.1,    # End with 10% exploration
 )
 ```
 
