@@ -4,10 +4,11 @@ A reinforcement learning environment for warehouse logistics simulations built w
 
 ## Features
 
-- **Custom Gymnasium Environment**: 8x8 grid-based warehouse with dynamic package placement
+- **Custom Gymnasium Environment**: Configurable grid-based warehouse with dynamic package placement
 - **DQN Agent**: Q-learning based deep neural network agent for autonomous decision-making
 - **Reward Shaping**: Incentivizes efficient package delivery with step penalties and delivery bonuses
-- **Live PyGame Visualizer**: Interactive real-time visualization while training (`--visualize`)
+- **Interactive Training Lab**: Full PyGame UI (`ui_dashboard.py`) with live visualization and parameter controls
+- **Live PyGame Visualizer**: Lightweight real-time visualization while training (`--visualize`)
 - **Training Visualization**: Post-training performance charts with matplotlib
 - **Testing & Inference**: Scripts for evaluating trained agent behavior
 
@@ -17,10 +18,11 @@ A reinforcement learning environment for warehouse logistics simulations built w
 warehouse-rl-demo/
 ├── warehouse_env.py       # Custom Gymnasium environment
 ├── train_agent.py         # Training script with DQN agent
-├── visualizer_pygame.py   # Live PyGame visualizer (threaded)
+├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
+├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
 ├── requirements.txt       # Python dependencies
-├── README.md             # This file
-└── .gitignore            # Git configuration
+├── README.md              # This file
+└── .gitignore             # Git configuration
 ```
 
 ## Installation
@@ -44,7 +46,59 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Training the Agent
+### Interactive Training Lab (Recommended)
+
+Launch the full-featured interactive UI:
+
+```bash
+python ui_dashboard.py
+```
+
+A 1300×780 window opens with three panels:
+
+#### Left Panel – Parameter Controls
+
+| Slider | Range | Default | Description |
+|--------|-------|---------|-------------|
+| Grid Size | 6 – 15 | 8 | Warehouse grid dimensions |
+| Packages | 1 – 5 | 1 | Number of packages to deliver |
+| Max Steps | 100 – 500 | 300 | Episode step limit |
+| Timesteps (k) | 10k – 500k | 100k | Total training timesteps |
+| Learning Rate | 1e-4 – 1e-2 | 1e-3 | DQN learning rate (log scale) |
+| Init Epsilon | 0.5 – 1.0 | 1.0 | Starting exploration rate |
+| Final Epsilon | 0.01 – 0.3 | 0.1 | Ending exploration rate |
+| Buffer (k) | 1k – 50k | 10k | Replay buffer size |
+| Step Cost | 0.01 – 0.5 | 0.05 | Per-step reward penalty |
+
+#### Center Panel – Live Warehouse Grid
+
+- Agent position updates in real time during training
+- White circle = agent (empty-handed), gold circle = agent (carrying)
+- Blue squares = packages pending delivery, green squares = delivered
+- Green cell (D) = delivery zone
+- Episode number, step count, and reward overlay below the grid
+
+#### Right Panel – Stats & Metrics
+
+- Training state, model status
+- Live episode number, step, reward, and 50-episode moving average
+- Total timesteps, elapsed time, UI FPS
+- Training progress bar
+- Reward history graph (last 100 episodes) with 20-episode moving average
+
+#### Bottom Bar – Control Buttons
+
+| Button | Shortcut | Description |
+|--------|----------|-------------|
+| START TRAINING | — | Begin training with current slider settings |
+| PAUSE / RESUME | **SPACE** | Pause or resume the training loop |
+| STOP | — | Terminate training gracefully |
+| SAVE MODEL | **S** | Save model to `warehouse_dqn_model.zip` |
+| LOAD MODEL | — | Queue a saved model for the next training run |
+| RESET STATS | **R** | Clear reward history and metrics |
+| EXIT | **Q** / **ESC** | Stop training and close the window |
+
+### Training the Agent (Command Line)
 
 Run the training script to train a DQN agent:
 
@@ -114,17 +168,23 @@ train_agent(total_timesteps=100000)
 test_agent(num_episodes=5)
 ```
 
-Edit environment parameters in `warehouse_env.py`:
+Edit environment parameters via constructor arguments in `warehouse_env.py` or `train_agent.py`:
 
 ```python
 # Larger grid with more packages (once basic task is mastered)
 env = WarehouseEnv(grid_size=10, num_packages=3)
 
-# Adjust max steps per episode
-self.max_steps = 400
+# Adjust max steps and step cost
+env = WarehouseEnv(max_steps=400, step_cost=0.02)
 
-# Modify reward values
-reward += 15  # Higher delivery reward
+# Pass parameters to train_agent
+train_agent(
+    total_timesteps=200000,
+    grid_size=10,
+    num_packages=2,
+    max_steps=400,
+    learning_rate=5e-4,
+)
 ```
 
 ## Environment Details
