@@ -14,7 +14,8 @@ class WarehouseEnv(gym.Env):
     
     metadata = {"render_modes": ["human"]}
     
-    def __init__(self, grid_size: int = 8, num_packages: int = 1):
+    def __init__(self, grid_size: int = 8, num_packages: int = 1,
+                 max_steps: int = 300, step_cost: float = 0.05):
         super().__init__()
         self.grid_size = grid_size
         self.num_packages = num_packages
@@ -40,7 +41,8 @@ class WarehouseEnv(gym.Env):
         
         self._init_packages()
         self.step_count = 0
-        self.max_steps = 300  # Increased from 200 for more time to learn
+        self.max_steps = max_steps
+        self.step_cost = step_cost
         self.last_distance = self._get_nearest_package_distance()  # For distance-based reward shaping
     
     def _init_packages(self):
@@ -84,7 +86,7 @@ class WarehouseEnv(gym.Env):
         Execute one step with improved reward shaping.
         Returns: observation, reward, terminated, truncated, info
         """
-        reward = -0.05  # Reduced step cost from -0.1 to -0.05
+        reward = -self.step_cost  # Configurable step cost
         
         # Movement actions
         if action == 0:  # up

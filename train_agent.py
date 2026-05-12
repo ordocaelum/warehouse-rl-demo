@@ -1,4 +1,5 @@
 import argparse
+import functools
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -70,24 +71,43 @@ class RewardCallback(BaseCallback):
         return True
 
 
-def train_agent(total_timesteps: int = 100000, visualizer=None):
+def train_agent(
+    total_timesteps: int = 100000,
+    visualizer=None,
+    grid_size: int = 8,
+    num_packages: int = 1,
+    max_steps: int = 300,
+    step_cost: float = 0.05,
+    learning_rate: float = 1e-3,
+    buffer_size: int = 10000,
+    exploration_initial: float = 1.0,
+    exploration_final: float = 0.1,
+    exploration_fraction: float = 0.2,
+):
     """Train DQN agent on warehouse environment."""
 
-    # Create environment
-    env = make_vec_env(WarehouseEnv, n_envs=1)
+    # Create environment with configurable parameters
+    make_fn = functools.partial(
+        WarehouseEnv,
+        grid_size=grid_size,
+        num_packages=num_packages,
+        max_steps=max_steps,
+        step_cost=step_cost,
+    )
+    env = make_vec_env(make_fn, n_envs=1)
 
     # Initialize DQN agent
     # Note: DQN is based on Q-learning principles
     model = DQN(
         "MlpPolicy",
         env,
-        learning_rate=1e-3,
-        buffer_size=10000,
+        learning_rate=learning_rate,
+        buffer_size=buffer_size,
         learning_starts=500,
         target_update_interval=500,
-        exploration_fraction=0.2,
-        exploration_initial_eps=1.0,
-        exploration_final_eps=0.1,
+        exploration_fraction=exploration_fraction,
+        exploration_initial_eps=exploration_initial,
+        exploration_final_eps=exploration_final,
         verbose=1
     )
 
