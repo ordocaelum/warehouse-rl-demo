@@ -7,7 +7,8 @@ A reinforcement learning environment for warehouse logistics simulations built w
 - **Custom Gymnasium Environment**: 8x8 grid-based warehouse with dynamic package placement
 - **DQN Agent**: Q-learning based deep neural network agent for autonomous decision-making
 - **Reward Shaping**: Incentivizes efficient package delivery with step penalties and delivery bonuses
-- **Training Visualization**: Real-time performance tracking with matplotlib plots
+- **Live PyGame Visualizer**: Interactive real-time visualization while training (`--visualize`)
+- **Training Visualization**: Post-training performance charts with matplotlib
 - **Testing & Inference**: Scripts for evaluating trained agent behavior
 
 ## Project Structure
@@ -16,6 +17,7 @@ A reinforcement learning environment for warehouse logistics simulations built w
 warehouse-rl-demo/
 ├── warehouse_env.py       # Custom Gymnasium environment
 ├── train_agent.py         # Training script with DQN agent
+├── visualizer_pygame.py   # Live PyGame visualizer (threaded)
 ├── requirements.txt       # Python dependencies
 ├── README.md             # This file
 └── .gitignore            # Git configuration
@@ -56,6 +58,49 @@ This will:
 - Save the trained model as `warehouse_dqn_model.zip`
 - Generate `training_progress.png` showing reward curves
 - Test the agent on 3 episodes
+
+### Live Interactive Visualizer
+
+Watch the agent learn in real-time with the PyGame visualizer:
+
+```bash
+python train_agent.py --visualize
+```
+
+A window opens showing:
+- The 8×8 warehouse grid with agent, packages, and delivery zone
+- Live metrics: episode, step, reward, 50-episode moving average, exploration rate
+- A reward history sparkline
+
+#### Visualizer Controls
+
+| Key / Action         | Effect                                  |
+|----------------------|-----------------------------------------|
+| **SPACE**            | Pause / resume training                 |
+| **S** (while paused) | Step through one episode                |
+| **↑ / ↓**            | Zoom in / out                           |
+| **Mouse wheel**      | Zoom in / out                           |
+| **Mouse drag**       | Pan the grid                            |
+| **R**                | Reset zoom and pan                      |
+
+#### Visual Legend
+
+| Element               | Colour                                  |
+|-----------------------|-----------------------------------------|
+| Agent (empty-handed)  | White circle                            |
+| Agent (carrying)      | Gold / orange circle                    |
+| Package (pending)     | Blue square                             |
+| Package (delivered)   | Green square                            |
+| Delivery zone (D)     | Green cell (bottom-right corner)        |
+| Positive reward text  | Green                                   |
+| Negative reward text  | Red                                     |
+
+#### Threading Architecture
+
+The visualizer runs in a **background daemon thread** so training continues on
+the main CPU thread without interruption.  State updates are exchanged via a
+thread-safe `queue.Queue`; the visualizer drops frames when it falls behind so
+it never slows training down.
 
 ### Customization
 
@@ -166,6 +211,7 @@ After training, you'll see:
 - numpy
 - matplotlib
 - torch (installed with stable-baselines3)
+- pygame >= 2.1.0 (for the live visualizer)
 
 ## License
 
