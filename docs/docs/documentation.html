@@ -102,13 +102,13 @@ pip install -r requirements.lock" %}
 <section id="visualizer">
   <h2>Live Visualizer</h2>
   {% include code-block.html code="python train_agent.py --visualize" %}
-  <p>The visualizer runs on a background daemon thread and consumes queue-based state updates to avoid blocking training execution.</p>
+  <p>The visualizer's window runs on the main thread (pygame/SDL requires this on macOS) and training runs in a background thread, so neither waits on the other. Training produces one state update per step, more than the display can draw, so updates go through a keep-latest slot (<code>latest_slot.py</code>): training never waits, each frame draws the newest state, and the panel shows how many steps were not drawn. Episode returns use a separate channel, so none are lost. Closing the window early lets training finish without display.</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Control</th><th>Effect</th></tr></thead>
       <tbody>
         <tr><td>Space</td><td>Pause or resume training</td></tr>
-        <tr><td>S (while paused)</td><td>Step one episode</td></tr>
+        <tr><td>S (while paused)</td><td>Run to the end of the current episode, then pause on its final frame</td></tr>
         <tr><td>Arrow Up/Down or mouse wheel</td><td>Zoom</td></tr>
         <tr><td>Mouse drag</td><td>Pan grid</td></tr>
         <tr><td>R</td><td>Reset zoom and pan</td></tr>
