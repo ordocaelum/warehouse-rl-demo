@@ -89,3 +89,18 @@ def test_dashboard_draws_the_forwarded_state_with_its_renderer():
     assert before is None
     assert state is STATE
     assert LEFT_W <= rect.left and rect.right <= LEFT_W + CENTER_W
+
+
+def test_observation_renderer_draws_one_signed_bar_per_component():
+    from lab_render import ObservationRenderer
+
+    r = ObservationRenderer()
+    surf = _surface(400, 300)
+    state = {"observation": [1.0, -2.0, 0.0], "low": [-2.0, None, None], "high": [2.0, None, None]}
+    drawn = r.draw(surf, pygame.Rect(0, 0, 400, 300), state)
+    assert drawn.h == 3 * 48 and drawn.w == 400
+    colours = [{_rgb(surf, x, drawn.y + i * 48 + 24) for x in range(70, 310)} for i in range(3)]
+    assert r.POS in colours[0] and r.NEG not in colours[0]  # +1 in [-2, 2]: half right
+    assert r.NEG in colours[1] and r.POS not in colours[1]  # unbounded: scaled to itself
+    assert r.POS not in colours[2] and r.NEG not in colours[2]
+    assert r.draw(_surface(), pygame.Rect(0, 0, 10, 10), None) is None

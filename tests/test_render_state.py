@@ -5,6 +5,7 @@ import queue
 import threading
 
 import numpy as np
+import pytest
 from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
@@ -98,3 +99,43 @@ def test_callbacks_work_without_access_to_the_env_object():
     for updates in (viz.updates, list(q.queue)):
         assert len(updates) == 300
         assert all(set(u["render_state"]) == KEYS for u in updates)
+
+
+def test_envs_without_render_state_report_their_observation():
+    import gymnasium as gym
+
+    from lab_envs import ObservationRenderState
+
+    env = ObservationRenderState(gym.make("CartPole-v1"))
+    obs, info = env.reset(seed=0)
+    state = info["render_state"]
+    assert state["observation"] == [float(v) for v in obs]
+    assert state["low"][1] is None and state["high"][3] is None  # unbounded velocities
+    assert state["low"][0] == pytest.approx(-4.8) and state["high"][0] == pytest.approx(4.8)
+    assert json.loads(json.dumps(state)) == state
+    obs, *_, info = env.step(0)
+    assert info["render_state"]["observation"] == [float(v) for v in obs]
+    env.close()
+
+
+def test_own_render_state_passes_through_the_fallback():
+    from lab_envs import ObservationRenderState
+
+    _, info = ObservationRenderState(WarehouseEnv(grid_size=4)).reset(seed=0)
+    assert set(info["render_state"]) == KEYS
+
+
+def test_fallback_render_state_on_the_done_step_is_the_terminal_observation():
+    import gymnasium as gym
+
+    from lab_envs import ObservationRenderState
+
+    venv = DummyVecEnv([lambda: ObservationRenderState(gym.make("CartPole-v1"))])
+    venv.seed(0)
+    venv.reset()
+    dones = [False]
+    while not dones[0]:
+        _, _, dones, infos = venv.step(np.array([0]))  # always push left: falls fast
+    assert infos[0]["render_state"]["observation"] == [
+        float(v) for v in infos[0]["terminal_observation"]]
+    venv.close()

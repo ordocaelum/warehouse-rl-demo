@@ -13,6 +13,7 @@ from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
 from stable_baselines3.common.logger import configure as configure_sb3_logger
+from lab_envs import ObservationRenderState
 from lab_metrics import collect_algorithm_metrics
 from warehouse_env import WarehouseEnv
 
@@ -189,7 +190,8 @@ def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
     """The single-env DummyVecEnv (with Monitor) that both entry points train on.
 
     With ``monitor_dir``, Monitor writes per-episode reward/length/time to
-    ``monitor_dir/0.monitor.csv``.
+    ``monitor_dir/0.monitor.csv``. Envs that report no render state of their
+    own report their observation instead (ObservationRenderState).
     """
     make_fn = functools.partial(
         WarehouseEnv,
@@ -201,6 +203,7 @@ def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
     return make_vec_env(
         make_fn, n_envs=1, seed=seed,
         monitor_dir=str(monitor_dir) if monitor_dir is not None else None,
+        wrapper_class=ObservationRenderState,
     )
 
 

@@ -21,6 +21,7 @@ warehouse-rl-demo/
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
 ├── lab_render.py          # Renderer interface: how the lab draws an environment
+├── lab_envs.py            # Observation as render state, for envs that report none
 ├── lab_metrics.py         # Algorithm metrics, forwarded by name
 ├── lab_params.py          # Declarative schema for the dashboard's settings
 ├── warehouse_render.py    # Renderer for WarehouseEnv's render state
