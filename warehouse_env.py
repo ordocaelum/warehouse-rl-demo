@@ -1,7 +1,19 @@
+import math
+import numbers
+
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from typing import Tuple, Dict, Any
+
+
+def _require_int(name: str, value, minimum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+        raise TypeError(f"{name} must be an int, got {value!r}")
+    if value < minimum:
+        raise ValueError(f"{name} must be >= {minimum}, got {value}")
+    return int(value)
+
 
 class WarehouseEnv(gym.Env):
     """
@@ -17,6 +29,13 @@ class WarehouseEnv(gym.Env):
     def __init__(self, grid_size: int = 8, num_packages: int = 1,
                  max_steps: int = 300, step_cost: float = 0.05):
         super().__init__()
+        # Packages are placed strictly inside the border, which needs a grid
+        # of at least 3x3; with no packages an episode would end immediately.
+        grid_size = _require_int("grid_size", grid_size, 3)
+        num_packages = _require_int("num_packages", num_packages, 1)
+        max_steps = _require_int("max_steps", max_steps, 1)
+        if not isinstance(step_cost, numbers.Real) or not math.isfinite(step_cost):
+            raise ValueError(f"step_cost must be a finite number, got {step_cost!r}")
         self.grid_size = grid_size
         self.num_packages = num_packages
         
