@@ -156,6 +156,7 @@
                             <tr><td>Final Epsilon</td><td>0.01-0.3</td><td>0.1</td><td>Ending exploration rate</td></tr>
                             <tr><td>Buffer (k)</td><td>1k-50k</td><td>10k</td><td>Replay buffer size</td></tr>
                             <tr><td>Step Cost</td><td>0.01-0.5</td><td>0.05</td><td>Per-step reward penalty</td></tr>
+                            <tr><td>Seed</td><td>0-999</td><td>0</td><td>Random seed for the environment, agent and torch</td></tr>
                         </tbody>
                     </table>
 
@@ -298,7 +299,7 @@
                             </div>
                             <div class="mistake">
                                 <h4>Mistake 4: Ignoring the Moving Average</h4>
-                                <p>Watch the orange trend line, not the noisy blue episode rewards.</p>
+                                <p>Watch the orange trend line (20-episode moving average), not the noisy blue episode rewards.</p>
                             </div>
                         </div>
                     </div>

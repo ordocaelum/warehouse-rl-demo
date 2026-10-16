@@ -47,9 +47,11 @@ pip install -r requirements.txt" %}
         <tr><td>Final Epsilon</td><td>0.01-0.3</td><td>0.1</td><td>Final exploration floor</td></tr>
         <tr><td>Buffer</td><td>1k-50k</td><td>10k</td><td>Replay memory size</td></tr>
         <tr><td>Step Cost</td><td>0.01-0.5</td><td>0.05</td><td>Per-step penalty</td></tr>
+        <tr><td>Seed</td><td>0-999</td><td>0</td><td>Random seed for the environment, agent and torch</td></tr>
       </tbody>
     </table>
   </div>
+  <p>The right panel shows the episode, step, reward and 50-episode average reward (Avg(50ep)); total steps, elapsed time and UI FPS (the redraw rate, capped at 60; training speed is Total Steps &divide; Elapsed); and a reward graph of the last 100 episodes with a 20-episode moving average (orange).</p>
   <h3>Control Buttons</h3>
   <div class="table-wrap">
     <table>

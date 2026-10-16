@@ -96,8 +96,8 @@ toc:
     <p>Lower difficulty, increase timesteps, and verify training loop is actively running.</p>
   </details>
   <details class="collapsible">
-    <summary>Low FPS during training</summary>
-    <p>Reduce map size or package count, and close competing CPU-intensive applications.</p>
+    <summary>Training seems slow</summary>
+    <p>Measure it first: training speed is <strong>Total Steps &divide; Elapsed</strong> in the PERFORMANCE panel. <strong>UI FPS</strong> is how often the dashboard redraws (capped at 60); it does not measure training speed. To finish sooner, lower Timesteps or use an easier configuration, which needs fewer timesteps to learn, and close CPU-intensive applications.</p>
   </details>
 </section>
 
@@ -107,7 +107,7 @@ toc:
     <article class="callout"><strong>Jumping to hard tasks too early</strong><p>Begin with foundational settings and scale gradually.</p></article>
     <article class="callout"><strong>Changing parameters mid-run</strong><p>Sliders moved during a run apply only at the next START. STOP, adjust, then START, which begins a new run.</p></article>
     <article class="callout"><strong>Expecting immediate convergence</strong><p>Allow sufficient episodes before evaluating quality.</p></article>
-    <article class="callout"><strong>Ignoring moving average</strong><p>Track trend line, not noisy episode spikes.</p></article>
+    <article class="callout"><strong>Ignoring moving average</strong><p>Track the orange 20-episode moving average, not noisy episode spikes.</p></article>
   </div>
 </section>
 
