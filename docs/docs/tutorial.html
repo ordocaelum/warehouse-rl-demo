@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: Tutorial
-description: Curriculum learning walkthrough with stage progression, targets, and checkpoints.
+description: Difficulty progression walkthrough with stage settings, targets, and checkpoints.
 toc:
   - id: progression
     title: 4-Stage Progression
@@ -13,16 +13,19 @@ toc:
     title: Milestones
 ---
 <section id="progression">
-  <h2>4-Stage Curriculum Progression</h2>
+  <h2>4-Stage Difficulty Progression</h2>
+  <div class="callout">
+    <strong>Each stage is a separate training run with a new network.</strong> No weights carry over between stages: a saved model can only be loaded into the same grid size and package count. The progression is for you: it confirms that your setup and hyperparameters work on a task that learns in minutes before you spend longer on harder ones.
+  </div>
   <div class="stage-grid">
     {% assign stage1 = "8x8 grid|1 package|100k timesteps|Reward target +8 to +10" | split: "|" %}
     {% include stage-card.html stage="1" title="Master the Basics" text="Learn navigation, pickup, and dropoff mechanics under dense reward feedback." points=stage1 %}
     {% assign stage2 = "10x10 grid|2 packages|150k timesteps|Reward target +2 to +6" | split: "|" %}
-    {% include stage-card.html stage="2" title="Add Package Coordination" text="Expand policy from single objective to multi-objective planning." points=stage2 %}
+    {% include stage-card.html stage="2" title="Add Package Coordination" text="Train a fresh agent on two packages: multi-objective planning and route ordering." points=stage2 %}
     {% assign stage3 = "12x12 grid|3 packages|200k timesteps|Reward target -2 to +2" | split: "|" %}
-    {% include stage-card.html stage="3" title="Scale Planning Depth" text="Handle larger state space and tighter episode constraints." points=stage3 %}
+    {% include stage-card.html stage="3" title="Scale Planning Depth" text="Train a fresh agent on a larger state space with tighter episode constraints." points=stage3 %}
     {% assign stage4 = "15x15 grid|3-5 packages|300k+ timesteps|Reward target -4 to -12" | split: "|" %}
-    {% include stage-card.html stage="4" title="Challenge Mode" text="Deploy learned representations into sparse and noisy reward conditions." points=stage4 %}
+    {% include stage-card.html stage="4" title="Challenge Mode" text="Train a fresh agent under sparser, noisier reward conditions." points=stage4 %}
   </div>
 </section>
 

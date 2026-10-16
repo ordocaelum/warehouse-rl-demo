@@ -75,12 +75,12 @@
                         <div class="feature-card">
                             <div class="feature-icon">4</div>
                             <h4>Model Management</h4>
-                            <p>Save, load, and transfer learning between configurations</p>
+                            <p>Save at any time and resume a saved run on the same configuration</p>
                         </div>
                         <div class="feature-card">
                             <div class="feature-icon">5</div>
-                            <h4>Curriculum Learning</h4>
-                            <p>4-stage progression from simple to complex tasks</p>
+                            <h4>Difficulty Progression</h4>
+                            <p>4 suggested stages from simple to complex; each stage trains a fresh network</p>
                         </div>
                         <div class="feature-card">
                             <div class="feature-icon">6</div>
@@ -190,8 +190,8 @@
         <!-- TUTORIAL TAB -->
         <section id="tutorial" class="tab-content">
             <div class="container">
-                <h2>Curriculum Learning Tutorial</h2>
-                <p class="section-intro">Master reinforcement learning by following a proven 4-stage progression from simple to complex tasks.</p>
+                <h2>Difficulty Progression Tutorial</h2>
+                <p class="section-intro">Work up through four configurations, from simple to complex. Each stage is a separate training run with a new network: a saved model loads only into the same grid size and package count, so no weights carry over between stages.</p>
                 
                 <div class="curriculum-stages">
                     <div class="stage-card stage-1">
@@ -312,9 +312,9 @@
                                 <li>Before trying new configurations</li>
                                 <li>After significant improvements</li>
                             </ul>
-                            <h4>Transfer Learning</h4>
-                            <p>Load a model trained on 8×8, 1pkg into 10×10, 2pkg for faster learning.</p>
-                            <p><strong>Important:</strong> Only load into SAME environment config, or train fresh on new config.</p>
+                            <h4>Moving to a New Configuration</h4>
+                            <p>Train fresh. A model trained on 8×8, 1 package cannot be loaded into 10×10, 2 packages, or into any other grid size or package count: the observation space (including its bounds) is saved with the model, and Stable Baselines3 refuses to load it into a different one.</p>
+                            <p><strong>Important:</strong> Only load into the same grid size and package count. Nothing is transferred between configurations.</p>
                         </div>
                     </div>
                 </div>

@@ -5,8 +5,8 @@ description: Practical strategies for tuning, troubleshooting, and stable model 
 toc:
   - id: getting-started
     title: Getting Started
-  - id: curriculum
-    title: Curriculum Learning
+  - id: progression
+    title: Difficulty Progression
   - id: tuning
     title: Parameter Tuning
   - id: troubleshooting
@@ -36,23 +36,24 @@ toc:
   </div>
 </section>
 
-<section id="curriculum">
-  <h2>Curriculum Learning</h2>
+<section id="progression">
+  <h2>Difficulty Progression</h2>
+  <p>Start with an easy configuration and move to harder ones only once the easy one trains well. <strong>Each stage is a separate training run with a new network</strong>: a saved model can only be loaded into the same grid size and package count, so no weights carry over between stages. This is not curriculum learning in the sense of one agent carrying its knowledge from stage to stage.</p>
   <details class="collapsible" open>
     <summary>Stage 1 · 8x8, 1 package</summary>
     <p>Train for 100k timesteps. Save checkpoint when average reward stays above +6.</p>
   </details>
   <details class="collapsible">
     <summary>Stage 2 · 10x10, 2 packages</summary>
-    <p>Train for 150k timesteps. Track multi-objective routing improvements.</p>
+    <p>Train fresh for 150k timesteps (the Stage 1 model cannot be loaded here). Track multi-objective routing improvements.</p>
   </details>
   <details class="collapsible">
     <summary>Stage 3 · 12x12, 3 packages</summary>
-    <p>Train for 200k timesteps. Expect noisier curve with gradual upward trend.</p>
+    <p>Train fresh for 200k timesteps. Expect noisier curve with gradual upward trend.</p>
   </details>
   <details class="collapsible">
     <summary>Stage 4 · 15x15, 3-5 packages</summary>
-    <p>Train for 300k+ timesteps. Evaluate stability and delivery consistency.</p>
+    <p>Train fresh for 300k+ timesteps. Evaluate stability and delivery consistency.</p>
   </details>
 </section>
 
@@ -108,5 +109,6 @@ toc:
   {% include code-block.html code="First experiment:
 Grid 8, Packages 1, Max Steps 300, Timesteps 100k, LR 1e-3" %}
   {% include code-block.html code="Scale up:
-Grid 10, Packages 2, Max Steps 300, Timesteps 150k" %}
+Grid 10, Packages 2, Max Steps 300, Timesteps 150k
+Train fresh (an 8x8 model cannot be loaded here)" %}
 </section>
