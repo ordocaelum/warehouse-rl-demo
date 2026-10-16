@@ -50,17 +50,49 @@ pip install -r requirements.txt" %}
       </tbody>
     </table>
   </div>
+  <h3>Control Buttons</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Button</th><th>Shortcut</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>START TRAINING</td><td>&mdash;</td><td>Begin a new run with the current slider settings</td></tr>
+        <tr><td>PAUSE / RESUME</td><td>Space</td><td>Pause or resume the training loop</td></tr>
+        <tr><td>STOP</td><td>&mdash;</td><td>Stop training; a stopped run is not saved unless you click SAVE MODEL</td></tr>
+        <tr><td>SAVE MODEL</td><td>S</td><td>Save the model and replay buffer to <code>runs/&lt;run&gt;/model.zip</code>; works while training or paused</td></tr>
+        <tr><td>LOAD MODEL</td><td>&mdash;</td><td>Select the most recent saved model and set Grid Size, Packages, Max Steps and Step Cost to match it; the next START resumes it (weights, optimizer, hyperparameters, step count, replay buffer)</td></tr>
+        <tr><td>RESET STATS</td><td>R</td><td>Clear the reward graph and displayed metrics</td></tr>
+        <tr><td>EXIT</td><td>Q / Esc</td><td>Stop training and close the window</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A model loads only into the grid size and package count it was trained on. Each START writes to a new folder under <code>runs/</code>, so a run never overwrites an earlier model.</p>
 </section>
 
 <section id="cli-training">
   <h2>Command-Line Training</h2>
   {% include code-block.html code="python train_agent.py" %}
   <ul>
-    <li>Trains DQN for default 100,000 timesteps.</li>
-    <li>Saves model as <code>warehouse_dqn_model.zip</code>.</li>
-    <li>Generates <code>training_progress.png</code>.</li>
-    <li>Runs inference test episodes.</li>
+    <li>Trains DQN for 100,000 timesteps by default (<code>--timesteps</code>).</li>
+    <li>Saves the model as <code>runs/&lt;run&gt;/model.zip</code>, with its replay buffer next to it.</li>
+    <li>Generates <code>runs/&lt;run&gt;/training_progress.png</code>.</li>
+    <li>Tests the agent on 3 episodes, on the configuration it was trained on.</li>
   </ul>
+  <p>Options: <code>--timesteps</code>, <code>--seed</code>, <code>--grid-size</code>, <code>--packages</code>, <code>--max-steps</code>, <code>--step-cost</code>, <code>--checkpoint-freq</code>, <code>--runs-dir</code>.</p>
+  <h3>Run Folders</h3>
+  <p>Every run, from the command line or the dashboard, writes to its own folder, <code>runs/&lt;YYYYmmdd-HHMMSS&gt;_g&lt;grid&gt;_p&lt;packages&gt;_s&lt;seed&gt;/</code>:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>File</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td><code>config.json</code></td><td>Environment and agent settings, seed, timesteps, Python and library versions</td></tr>
+        <tr><td><code>model.zip</code>, <code>model_replay_buffer.pkl</code></td><td>The trained model (SB3 format) and its replay buffer</td></tr>
+        <tr><td><code>checkpoints/</code></td><td>Model and replay buffer every 10,000 steps (<code>--checkpoint-freq</code>)</td></tr>
+        <tr><td><code>0.monitor.csv</code></td><td>Reward, length and wall time of every episode</td></tr>
+        <tr><td><code>progress.csv</code>, <code>events.out.tfevents.*</code></td><td>SB3 training metrics; view with <code>tensorboard --logdir runs</code></td></tr>
+        <tr><td><code>train.log</code>, <code>training_progress.png</code></td><td>Command-line runs only: console log and reward plot</td></tr>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section id="visualizer">

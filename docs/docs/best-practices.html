@@ -9,6 +9,8 @@ toc:
     title: Difficulty Progression
   - id: tuning
     title: Parameter Tuning
+  - id: models
+    title: Saving and Loading
   - id: troubleshooting
     title: Debugging
   - id: mistakes
@@ -73,11 +75,21 @@ toc:
   </div>
 </section>
 
+<section id="models">
+  <h2>Saving and Loading Models</h2>
+  <ul>
+    <li><strong>SAVE MODEL</strong> (or <strong>S</strong>) works while training or paused. It writes <code>runs/&lt;run&gt;/model.zip</code> and the replay buffer next to it.</li>
+    <li>Every START gets its own folder under <code>runs/</code>, so a new run never overwrites an earlier model. A run that completes saves automatically; a stopped run is saved only if you click SAVE MODEL.</li>
+    <li><strong>LOAD MODEL</strong> selects the most recent <code>runs/*/model.zip</code> and sets Grid Size, Packages, Max Steps and Step Cost to the values it was trained with. The next START resumes it: weights, optimizer state, hyperparameters, step count and replay buffer. The agent sliders do not apply to a resumed run.</li>
+    <li>A model loads only into the same grid size and package count. For a new configuration, train fresh.</li>
+  </ul>
+</section>
+
 <section id="troubleshooting">
   <h2>Debugging Checklist</h2>
   <details class="collapsible" open>
     <summary>Observation spaces do not match</summary>
-    <p>Loaded checkpoint was trained with a different package count. Match configuration before loading.</p>
+    <p>The loaded model was trained with a different grid size or package count. LOAD MODEL sets those sliders for you, so this happens only if they were changed between LOAD and START: click LOAD MODEL again and START without changing them. (RESET STATS only clears the displayed graph and metrics; it does not affect loading.)</p>
   </details>
   <details class="collapsible">
     <summary>Flat reward graph</summary>
@@ -93,7 +105,7 @@ toc:
   <h2>Common Mistakes</h2>
   <div class="feature-grid">
     <article class="callout"><strong>Jumping to hard tasks too early</strong><p>Begin with foundational settings and scale gradually.</p></article>
-    <article class="callout"><strong>Changing parameters mid-run</strong><p>Reset stats and start a fresh session after parameter updates.</p></article>
+    <article class="callout"><strong>Changing parameters mid-run</strong><p>Sliders moved during a run apply only at the next START. STOP, adjust, then START, which begins a new run.</p></article>
     <article class="callout"><strong>Expecting immediate convergence</strong><p>Allow sufficient episodes before evaluating quality.</p></article>
     <article class="callout"><strong>Ignoring moving average</strong><p>Track trend line, not noisy episode spikes.</p></article>
   </div>

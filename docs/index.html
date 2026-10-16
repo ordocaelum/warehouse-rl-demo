@@ -312,6 +312,9 @@
                                 <li>Before trying new configurations</li>
                                 <li>After significant improvements</li>
                             </ul>
+                            <p>SAVE MODEL (or <strong>S</strong>) works while training or paused and writes <code>runs/&lt;run&gt;/model.zip</code> with its replay buffer. Every START gets its own run folder, so a new run never overwrites an earlier model.</p>
+                            <h4>Loading</h4>
+                            <p>LOAD MODEL selects the most recent saved model and sets Grid Size, Packages, Max Steps and Step Cost to match it. The next START resumes that model: weights, optimizer state, hyperparameters, step count and replay buffer.</p>
                             <h4>Moving to a New Configuration</h4>
                             <p>Train fresh. A model trained on 8×8, 1 package cannot be loaded into 10×10, 2 packages, or into any other grid size or package count: the observation space (including its bounds) is saved with the model, and Stable Baselines3 refuses to load it into a different one.</p>
                             <p><strong>Important:</strong> Only load into the same grid size and package count. Nothing is transferred between configurations.</p>
@@ -392,8 +395,8 @@
                         </thead>
                         <tbody>
                             <tr><td>SPACE</td><td>Pause/Resume training</td></tr>
-                            <tr><td>S</td><td>Save model</td></tr>
-                            <tr><td>R</td><td>Reset stats</td></tr>
+                            <tr><td>S</td><td>Save model to <code>runs/&lt;run&gt;/model.zip</code> (while training or paused)</td></tr>
+                            <tr><td>R</td><td>Reset stats (clears the reward graph and displayed metrics)</td></tr>
                             <tr><td>Q / ESC</td><td>Exit</td></tr>
                         </tbody>
                     </table>
