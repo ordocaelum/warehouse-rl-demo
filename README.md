@@ -212,6 +212,18 @@ train_agent(
 A package's X, Y is where the package currently is: its pickup cell while
 waiting, the agent's cell while carried, and the delivery zone once delivered.
 
+### Info Dictionary
+
+`reset()` and `step()` return an `info` dict with:
+
+| Key | Meaning |
+|-----|---------|
+| `delivered` | Packages delivered so far |
+| `num_packages` | Packages in the episode |
+| `invalid_action` | (`step` only) the action changed nothing: walking into a wall, picking up with nothing to pick up, dropping off empty-handed or away from the zone |
+| `is_success` | (`step` only) every package has been delivered. SB3 reports it as `rollout/success_rate` |
+| `termination_reason` | (`step` only) `"all_delivered"`, `"max_steps"` or `None`. A delivery on the last allowed step is `"all_delivered"` |
+
 ### Reward Structure
 
 - **+10** for delivering a package to the delivery zone

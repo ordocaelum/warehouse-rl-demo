@@ -85,6 +85,24 @@ class WarehouseEnv(gym.Env):
             for pkg in undelivered
         ))
 
+    def _action_mask(self) -> np.ndarray:
+        """Which of the 6 actions would change the state right now."""
+        x, y = int(self.agent_pos[0]), int(self.agent_pos[1])
+        last = self.grid_size - 1
+        can_pickup = self.carrying == -1 and any(
+            p[0] == x and p[1] == y and not p[2] for p in self.packages
+        )
+        can_dropoff = self.carrying >= 0 and (x, y) == tuple(self.delivery_zone)
+        return np.array(
+            [y > 0, y < last, x > 0, x < last, can_pickup, can_dropoff], dtype=bool
+        )
+
+    def _get_info(self) -> Dict[str, Any]:
+        return {
+            "delivered": sum(1 for pkg in self.packages if pkg[2]),
+            "num_packages": self.num_packages,
+        }
+
     def _get_obs(self) -> np.ndarray:
         """Flatten state into observation vector."""
         obs = [self.agent_pos[0], self.agent_pos[1], float(self.carrying >= 0)]
@@ -124,13 +142,25 @@ class WarehouseEnv(gym.Env):
         self._init_packages()
         self.step_count = 0
         self.last_distance = self._get_nearest_package_distance()
-        return self._get_obs(), {}
+        return self._get_obs(), self._get_info()
     
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """
         Execute one step with improved reward shaping.
         Returns: observation, reward, terminated, truncated, info
+
+        info keys:
+          delivered          packages delivered so far
+          num_packages       packages in the episode
+          invalid_action     True if the action changed nothing (walking into
+                             a wall, pickup with nothing to pick up, dropoff
+                             while empty-handed or away from the zone)
+          is_success         True when every package has been delivered
+          termination_reason "all_delivered", "max_steps" or None; a delivery
+                             on the last allowed step reports "all_delivered"
         """
+        a = int(action)
+        invalid_action = not (0 <= a < 6 and self._action_mask()[a])
         reward = -self.step_cost  # Configurable step cost
         
         # Movement actions
@@ -178,8 +208,14 @@ class WarehouseEnv(gym.Env):
         self.step_count += 1
         terminated = all(pkg[2] for pkg in self.packages)  # All packages delivered
         truncated = self.step_count >= self.max_steps
-        
-        return self._get_obs(), reward, terminated, truncated, {}
+
+        info = self._get_info()
+        info["invalid_action"] = invalid_action
+        info["is_success"] = terminated
+        info["termination_reason"] = (
+            "all_delivered" if terminated else "max_steps" if truncated else None
+        )
+        return self._get_obs(), reward, terminated, truncated, info
     
     def render(self):
         """Simple text rendering."""
