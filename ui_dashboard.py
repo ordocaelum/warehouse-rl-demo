@@ -44,6 +44,8 @@ except ImportError:
         def __init__(self, verbose: int = 0) -> None:
             pass
 
+from latest_slot import LatestSlot
+
 try:
     from warehouse_env import WarehouseEnv
     _ENV_AVAILABLE = True
@@ -299,7 +301,7 @@ class _Callback(_BaseCallback):
 
     def __init__(
         self,
-        metrics_q: queue.Queue,
+        metrics_q: LatestSlot,
         stop_ev: threading.Event,
         pause_ev: threading.Event,
     ) -> None:
@@ -367,10 +369,8 @@ class _Callback(_BaseCallback):
             "ep_rewards":  list(self.ep_rewards[-100:]),
         }
 
-        try:
-            self._q.put_nowait(metrics)
-        except queue.Full:
-            pass  # drop frame; keep training at full speed
+        # Never blocks: replaces any update the UI has not drawn yet.
+        self._q.put(metrics)
 
         if done:
             self.ep_rewards.append(self._ep_r)
@@ -390,7 +390,7 @@ class _TrainingThread(threading.Thread):
     def __init__(
         self,
         params: dict,
-        metrics_q: queue.Queue,
+        metrics_q: LatestSlot,
         stop_ev: threading.Event,
         pause_ev: threading.Event,
         on_done,  # callable(thread), called from this thread when it finishes
@@ -513,7 +513,8 @@ class Dashboard:
         self._err_msg   = ""
 
         # Threading primitives
-        self._metrics_q  = queue.Queue(maxsize=300)
+        # Newest metrics from the training thread; a new slot per run.
+        self._metrics_slot = LatestSlot()
         # Finished training threads, posted by the thread itself and applied
         # by the UI thread, which is the only writer of the dashboard state.
         self._done_q: "queue.Queue[_TrainingThread]" = queue.Queue()
@@ -573,16 +574,13 @@ class Dashboard:
                 self._frame_n   = 0
                 self._fps_timer = now
 
-            # Drain the metrics queue from the training thread
-            try:
-                while True:
-                    m = self._metrics_q.get_nowait()
-                    self._metrics = m
-                    ep = m.get("ep_rewards")
-                    if ep is not None:
-                        self._ep_rewards = ep
-            except queue.Empty:
-                pass
+            # Newest metrics from the training thread, if any arrived
+            has_update, m = self._metrics_slot.take()
+            if has_update:
+                self._metrics = m
+                ep = m.get("ep_rewards")
+                if ep is not None:
+                    self._ep_rewards = ep
 
             # Apply the result of a training thread that has finished
             self._apply_finished()
@@ -675,8 +673,9 @@ class Dashboard:
         self._metrics    = {}
         self._err_msg    = ""
         self._btns["PAUSE"].label = "PAUSE"
+        self._metrics_slot = LatestSlot()
         self._thread = _TrainingThread(
-            params, self._metrics_q, self._stop_ev, self._pause_ev,
+            params, self._metrics_slot, self._stop_ev, self._pause_ev,
             on_done=self._on_done,
         )
         self._state = "training"
@@ -969,6 +968,8 @@ class Dashboard:
         row("Total Steps:", f"{ts:,}")
         row("Elapsed:",     f"{hh:02d}:{mm:02d}:{ss:02d}")
         row("UI FPS:",      str(self._fps))
+        # Steps whose state was replaced before a frame could draw it
+        row("Not drawn:",   f"{self._metrics_slot.overwritten:,}")
 
         # Progress bar when training
         if self._state in ("training", "paused") and self._thread:

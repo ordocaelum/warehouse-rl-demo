@@ -164,9 +164,11 @@ A window opens showing:
 #### Threading Architecture
 
 The visualizer runs in a **background daemon thread** so training continues on
-the main CPU thread without interruption.  State updates are exchanged via a
-thread-safe `queue.Queue`; the visualizer drops frames when it falls behind so
-it never slows training down.
+the main CPU thread without interruption.  Training produces one state update
+per step, far more than the display can draw, so updates go through a
+keep-latest slot (`latest_slot.py`): training never waits, each frame draws the
+newest state, and the panel shows how many steps were not drawn. Episode
+returns use a separate channel, so none are lost.
 
 ### Customization
 

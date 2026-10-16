@@ -1,15 +1,17 @@
 """
 PyGame-based live visualizer for warehouse RL training.
 
-Runs in a separate thread and receives state updates via a thread-safe queue.
+Runs in a separate thread and receives state updates through a keep-latest slot
+(see latest_slot.py), so the display always shows the newest state.
 The training loop runs on the main thread (CPU) and pushes updates via put_update().
 """
 
 import collections
-import queue
 import threading
 import time
 from typing import List, Optional
+
+from latest_slot import LatestSlot
 
 try:
     import pygame
@@ -24,9 +26,6 @@ CELL_SIZE = 60          # pixels per grid cell (base zoom level)
 PANEL_WIDTH = 280       # right-hand metrics panel
 FPS_CAP = 60
 GRID_SIZE = 8
-# Buffer enough frames for ~2 seconds at 60 FPS to absorb bursts without
-# slowing the training thread; excess updates are silently dropped.
-UPDATE_QUEUE_SIZE = 120
 # Completed-episode returns kept for the sparkline.
 REWARD_HISTORY_LEN = 200
 
@@ -86,7 +85,8 @@ class WarehouseVisualizer:
             )
 
         self.grid_size = grid_size
-        self._queue: queue.Queue = queue.Queue(maxsize=UPDATE_QUEUE_SIZE)
+        # Newest per-step update; training never waits on the display.
+        self._updates = LatestSlot()
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
@@ -137,12 +137,9 @@ class WarehouseVisualizer:
     def put_update(self, state: dict) -> None:
         """
         Non-blocking push of a training-state snapshot to the visualizer.
-        Drops the update if the queue is full to prevent training slowdown.
+        Replaces any update not yet drawn, so each frame shows the newest state.
         """
-        try:
-            self._queue.put_nowait(state)
-        except queue.Full:
-            pass  # visualizer is behind; skip frame
+        self._updates.put(state)
 
     def put_episode_reward(self, episode_reward: float) -> None:
         """Record the return of a finished episode for the reward sparkline."""
@@ -192,13 +189,10 @@ class WarehouseVisualizer:
 
         try:
             while not self._stop_event.is_set():
-                # --- drain the update queue ---------------------------------
-                try:
-                    while True:
-                        update = self._queue.get_nowait()
-                        self._merge_state(update)
-                except queue.Empty:
-                    pass
+                # --- newest update, if any ---------------------------------
+                has_update, update = self._updates.take()
+                if has_update:
+                    self._merge_state(update)
 
                 # --- handle pygame events -----------------------------------
                 for event in pygame.event.get():
@@ -401,6 +395,13 @@ class WarehouseVisualizer:
 
         eps = state.get("epsilon", 1.0)
         surf = font_medium.render(f"Epsilon:  {eps:>8.4f}", True, COL_TEXT)
+        screen.blit(surf, (x, y))
+        y += surf.get_height() + 4
+
+        # steps whose state was replaced before a frame could draw it
+        surf = font_small.render(
+            f"Not drawn: {self._updates.overwritten:,} steps", True, COL_BORDER
+        )
         screen.blit(surf, (x, y))
         y += surf.get_height() + 4
 

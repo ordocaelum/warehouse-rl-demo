@@ -37,7 +37,7 @@ def _wait_for(predicate, timeout=60):
 def test_stop_ends_in_idle_with_model_available(dashboard):
     _set_timesteps(dashboard, 500)
     dashboard._cmd_start()
-    _wait_for(lambda: dashboard._metrics_q.qsize() > 0)
+    _wait_for(lambda: dashboard._metrics_slot.puts > 0)
     dashboard._cmd_stop()
     assert dashboard._state == "idle"
     assert dashboard._model is not None
@@ -47,7 +47,7 @@ def test_stop_ends_in_idle_with_model_available(dashboard):
 def test_result_arriving_after_stop_returns_does_not_change_state(dashboard):
     _set_timesteps(dashboard, 500)
     dashboard._cmd_start()
-    _wait_for(lambda: dashboard._metrics_q.qsize() > 0)
+    _wait_for(lambda: dashboard._metrics_slot.puts > 0)
     thread = dashboard._thread
     thread.join = lambda timeout=None: None  # as if join() had timed out
     dashboard._cmd_stop()
