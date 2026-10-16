@@ -1,5 +1,4 @@
 import argparse
-import functools
 import importlib.metadata
 import json
 import logging
@@ -16,6 +15,7 @@ from stable_baselines3.common.logger import configure as configure_sb3_logger
 from lab_envs import ObservationRenderState
 from lab_metrics import collect_algorithm_metrics
 from warehouse_env import WarehouseEnv
+from warehouse_lab import WAREHOUSE_ID, WAREHOUSE_PROFILE
 
 log = logging.getLogger("warehouse")
 
@@ -98,10 +98,9 @@ TARGET_UPDATE_INTERVAL = 500
 EXPLORATION_FRACTION = 0.2
 
 
-def new_run_dir(runs_dir=RUNS_DIR, grid_size: int = 8, num_packages: int = 1,
-                seed: int | None = None) -> Path:
-    """Create and return an empty folder for one training run's outputs."""
-    base = Path(runs_dir) / f"{time.strftime('%Y%m%d-%H%M%S')}_g{grid_size}_p{num_packages}_s{seed}"
+def new_run_dir(runs_dir=RUNS_DIR, name: str = "g8_p1", seed: int | None = None) -> Path:
+    """Create and return an empty folder, <time>_<name>_s<seed>, for one run's outputs."""
+    base = Path(runs_dir) / f"{time.strftime('%Y%m%d-%H%M%S')}_{name}_s{seed}"
     path, n = base, 1
     while path.exists():
         path = base.with_name(f"{base.name}-{n}")
@@ -185,23 +184,22 @@ def find_latest_model(runs_dir=RUNS_DIR) -> Path | None:
     return models[-1] if models else None
 
 
-def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
-             step_cost: float = 0.05, seed: int | None = None, monitor_dir=None):
+def make_env(env_id: str = WAREHOUSE_ID, seed: int | None = None, monitor_dir=None,
+             **env_kwargs):
     """The single-env DummyVecEnv (with Monitor) that both entry points train on.
+
+    ``env_id`` is any registered Gymnasium id, built with
+    ``gym.make(env_id, **env_kwargs)``.
 
     With ``monitor_dir``, Monitor writes per-episode reward/length/time to
     ``monitor_dir/0.monitor.csv``. Envs that report no render state of their
     own report their observation instead (ObservationRenderState).
     """
-    make_fn = functools.partial(
-        WarehouseEnv,
-        grid_size=grid_size,
-        num_packages=num_packages,
-        max_steps=max_steps,
-        step_cost=step_cost,
-    )
     return make_vec_env(
-        make_fn, n_envs=1, seed=seed,
+        env_id, n_envs=1, seed=seed,
+        # SB3 would ask a string id for render_mode="rgb_array"; nothing
+        # here renders frames (and WarehouseEnv has no such mode).
+        env_kwargs={"render_mode": None, **env_kwargs},
         monitor_dir=str(monitor_dir) if monitor_dir is not None else None,
         wrapper_class=ObservationRenderState,
     )
@@ -261,11 +259,11 @@ def train_agent(
                         exploration_final=exploration_final,
                         exploration_fraction=exploration_fraction)
     if run_dir is None:
-        run_dir = new_run_dir(grid_size=grid_size, num_packages=num_packages, seed=seed)
+        run_dir = new_run_dir(name=WAREHOUSE_PROFILE.run_tag(env_config), seed=seed)
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     write_run_config(
-        run_dir, env=env_config,
+        run_dir, env_id=WAREHOUSE_ID, env=env_config,
         agent={**agent_config, "learning_starts": LEARNING_STARTS,
                "target_update_interval": TARGET_UPDATE_INTERVAL},
         seed=seed, total_timesteps=total_timesteps,
@@ -384,7 +382,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    run_dir = new_run_dir(args.runs_dir, args.grid_size, args.packages, args.seed)
+    run_name = WAREHOUSE_PROFILE.run_tag(dict(grid_size=args.grid_size, num_packages=args.packages))
+    run_dir = new_run_dir(args.runs_dir, run_name, args.seed)
     logging.basicConfig(
         level=logging.INFO, format="%(message)s",
         handlers=[logging.StreamHandler(), logging.FileHandler(run_dir / "train.log")],

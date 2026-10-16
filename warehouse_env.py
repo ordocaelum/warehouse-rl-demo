@@ -270,5 +270,6 @@ class WarehouseEnv(gym.Env):
 # Registered so that gym.make("Warehouse-v0", grid_size=..., render_mode=...)
 # works once this module is imported.  No max_episode_steps: the env truncates
 # itself at max_steps.
-if "Warehouse-v0" not in gym.registry:
-    gym.register(id="Warehouse-v0", entry_point="warehouse_env:WarehouseEnv")
+ENV_ID = "Warehouse-v0"
+if ENV_ID not in gym.registry:
+    gym.register(id=ENV_ID, entry_point="warehouse_env:WarehouseEnv")

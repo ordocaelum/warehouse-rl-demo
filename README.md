@@ -21,11 +21,11 @@ warehouse-rl-demo/
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
 ├── lab_render.py          # Renderer interface: how the lab draws an environment
-├── lab_envs.py            # Observation as render state, for envs that report none
+├── lab_envs.py            # Any Gymnasium id: per-env profiles; observation as render state
 ├── lab_metrics.py         # Algorithm metrics, forwarded by name
 ├── lab_params.py          # Declarative schema for the dashboard's settings
 ├── warehouse_render.py    # Renderer for WarehouseEnv's render state
-├── warehouse_lab.py       # WarehouseEnv's settings for the dashboard
+├── warehouse_lab.py       # WarehouseEnv's profile: settings, renderer, run-folder name
 ├── requirements.txt       # Python dependencies (pinned)
 ├── requirements-dev.txt   # + pytest
 ├── requirements.lock      # every package pinned, all platforms
@@ -68,6 +68,9 @@ Launch the full-featured interactive UI:
 ```bash
 python ui_dashboard.py
 ```
+
+`--env` trains another registered Gymnasium environment instead of
+`Warehouse-v0` (see [Training Other Environments](#training-other-environments)).
 
 A 1300×780 window opens with three panels:
 
@@ -143,12 +146,13 @@ Options: `--timesteps`, `--seed`, `--grid-size`, `--packages`, `--max-steps`,
 ### Run Folders
 
 Every training run, from the command line or the dashboard, writes to its own
-folder, `runs/<YYYYmmdd-HHMMSS>_g<grid>_p<packages>_s<seed>/`, so runs never
+folder, `runs/<YYYYmmdd-HHMMSS>_g<grid>_p<packages>_s<seed>/` (for other
+environments, `runs/<YYYYmmdd-HHMMSS>_<env id>_s<seed>/`), so runs never
 overwrite each other:
 
 | File | Contents |
 |------|----------|
-| `config.json` | Environment and agent settings, seed, timesteps, Python and library versions |
+| `config.json` | Environment id and settings, agent settings, seed, timesteps, Python and library versions |
 | `model.zip`, `model_replay_buffer.pkl` | The trained model (SB3 format) and its replay buffer |
 | `checkpoints/` | Model and replay buffer every 10,000 steps (`--checkpoint-freq`) |
 | `0.monitor.csv` | Reward, length and wall time of every episode |

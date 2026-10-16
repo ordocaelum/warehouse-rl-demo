@@ -91,9 +91,11 @@ def test_delivery_zone_is_reported():
 
 
 def test_callbacks_forward_delivery_zone_from_info(monkeypatch):
+    import functools
     import queue
     import threading
 
+    import gymnasium as gym
     from stable_baselines3 import DQN
     from stable_baselines3.common.env_util import make_vec_env
 
@@ -107,7 +109,10 @@ def test_callbacks_forward_delivery_zone_from_info(monkeypatch):
             self.delivery_zone = (0, self.grid_size - 1)
 
     viz = RecordingVisualizer()
-    monkeypatch.setattr(train_agent, "WarehouseEnv", MovedZone)
+    if "MovedZoneWarehouse-v0" not in gym.registry:
+        gym.register("MovedZoneWarehouse-v0", entry_point=MovedZone)
+    monkeypatch.setattr(train_agent, "make_env",
+                        functools.partial(train_agent.make_env, "MovedZoneWarehouse-v0"))
     _, _, env = train_agent.train_agent(total_timesteps=50, visualizer=viz, seed=0, grid_size=5)
     env.close()
     assert {tuple(u["render_state"]["delivery_zone"]) for u in viz.updates} == {(0, 4)}

@@ -54,15 +54,8 @@ from lab_metrics import collect_algorithm_metrics, display_metrics
 from lab_params import AGENT_PARAMS, RUN_PARAMS, Param, by_target
 from lab_render import Renderer
 from latest_slot import LatestSlot
-from warehouse_lab import WAREHOUSE_PARAMS
-from warehouse_render import WarehouseRenderer
-
-try:
-    from warehouse_env import WarehouseEnv
-    _ENV_AVAILABLE = True
-except ImportError:
-    WarehouseEnv = None  # type: ignore[assignment,misc]
-    _ENV_AVAILABLE = False
+from lab_envs import get_profile
+from warehouse_lab import WAREHOUSE_ID  # also registers Warehouse-v0 and its profile
 
 
 # ---------------------------------------------------------------------------
@@ -407,7 +400,7 @@ class _TrainingThread(threading.Thread):
 
     def __init__(
         self,
-        params: dict,  # {"env", "agent", "run": kwargs by name, "load_path", "run_dir"}
+        params: dict,  # {"env_id", "env", "agent", "run" (kwargs by name), "load_path", "run_dir"}
         metrics_q: LatestSlot,
         stop_ev: threading.Event,
         pause_ev: threading.Event,
@@ -438,7 +431,7 @@ class _TrainingThread(threading.Thread):
             env_config, agent_config = p["env"], p["agent"]
             seed, total_timesteps = p["run"]["seed"], p["run"]["total_timesteps"]
             write_run_config(
-                self.run_dir, env=env_config,
+                self.run_dir, env_id=p["env_id"], env=env_config,
                 agent={**agent_config, "exploration_fraction": EXPLORATION_FRACTION,
                        "learning_starts": LEARNING_STARTS,
                        "target_update_interval": TARGET_UPDATE_INTERVAL},
@@ -447,7 +440,7 @@ class _TrainingThread(threading.Thread):
             )
             # Same construction as train_agent.py, so identical settings
             # train identically from either entry point.
-            env = make_env(**env_config, seed=seed, monitor_dir=self.run_dir)
+            env = make_env(p["env_id"], seed=seed, monitor_dir=self.run_dir, **env_config)
             self._env = env
 
             load_path = p.get("load_path")
@@ -499,28 +492,31 @@ class Dashboard:
 
     def __init__(
         self,
+        env_id: str = WAREHOUSE_ID,
         renderer: Optional[Renderer] = None,
-        env_params: Sequence[Param] = WAREHOUSE_PARAMS,
+        env_params: Optional[Sequence[Param]] = None,
     ) -> None:
+        """Train ``env_id``, any registered Gymnasium id. Its profile
+        (lab_envs.py) supplies the renderer and environment sliders unless
+        ``renderer`` / ``env_params`` are given."""
         if not _SB3_AVAILABLE:
             raise SystemExit(
                 "stable-baselines3 is required.  "
                 "Install it with:  pip install stable-baselines3"
             )
-        if not _ENV_AVAILABLE:
-            raise SystemExit(
-                "warehouse_env.py not found.  "
-                "Run this script from the project directory."
-            )
 
+        self._env_id  = env_id
+        self._profile = get_profile(env_id)
         # Draws the environment in the centre panel (see lab_render.py)
-        self._renderer = renderer if renderer is not None else WarehouseRenderer()
+        self._renderer = renderer if renderer is not None else self._profile.renderer()
+        if env_params is None:
+            env_params = self._profile.params
         # One slider per setting, in this order (see lab_params.py)
         self._params: Tuple[Param, ...] = (*env_params, *AGENT_PARAMS, *RUN_PARAMS)
 
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-        pygame.display.set_caption("Warehouse RL Training Lab")
+        pygame.display.set_caption(f"RL Training Lab - {env_id}")
         self.clock = pygame.time.Clock()
 
         # Font set
@@ -680,6 +676,7 @@ class Dashboard:
         """Slider values by target and name: {"env": {...}, "agent": {...}, "run": {...}}."""
         values = {p.name: p.value(self._sliders[p.name].value) for p in self._params}
         return {
+            "env_id":    self._env_id,
             **by_target(self._params, values),
             "load_path": self._load_path,
             "run_dir":   None,  # set by _cmd_start
@@ -691,15 +688,14 @@ class Dashboard:
         if self._thread and self._thread.is_alive():
             self._model_status = "Previous run still stopping"
             return
-        if not _SB3_AVAILABLE or not _ENV_AVAILABLE:
+        if not _SB3_AVAILABLE:
             self._model_status = "Missing dependencies – cannot train"
             return
         self._stop_ev.clear()
         self._pause_ev.clear()
         params = self._get_params()
         self._run_dir = new_run_dir(
-            RUNS_DIR, params["env"]["grid_size"], params["env"]["num_packages"],
-            params["run"]["seed"],
+            RUNS_DIR, self._profile.run_tag(params["env"]), params["run"]["seed"]
         )
         params["run_dir"] = str(self._run_dir)
         for s in self._sliders.values():
@@ -773,7 +769,13 @@ class Dashboard:
             self._model_status = f"No saved model in {RUNS_DIR}/"
             return
         # Match the environment sliders to the saved run, so its model fits.
-        env = read_run_config(latest.parent).get("env", {})
+        config = read_run_config(latest.parent)
+        # Runs saved before config.json recorded env_id were all warehouse runs.
+        saved_id = config.get("env_id", WAREHOUSE_ID)
+        if saved_id != self._env_id:
+            self._model_status = f"Can't load: run is for {saved_id}"
+            return
+        env = config.get("env", {})
         env_params = [p for p in self._params if p.target == "env" and p.name in env]
         for p in env_params:
             if not p.in_range(env[p.name]):
@@ -1148,7 +1150,15 @@ class Dashboard:
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
-    Dashboard().run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Interactive RL training lab")
+    parser.add_argument(
+        "--env", default=WAREHOUSE_ID,
+        help=f"Gymnasium environment id to train (default: {WAREHOUSE_ID}); "
+             "'module:Env-v0' imports module first",
+    )
+    Dashboard(env_id=parser.parse_args().env).run()
 
 
 if __name__ == "__main__":

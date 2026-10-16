@@ -25,7 +25,7 @@ def thread_params(run_dir, load_path=None, **values):
     from warehouse_lab import WAREHOUSE_PARAMS
 
     grouped = by_target(WAREHOUSE_PARAMS + AGENT_PARAMS + RUN_PARAMS, values)
-    return {**grouped, "load_path": load_path, "run_dir": str(run_dir)}
+    return {"env_id": "Warehouse-v0", **grouped, "load_path": load_path, "run_dir": str(run_dir)}
 
 
 def deliver(env):
