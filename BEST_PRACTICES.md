@@ -9,7 +9,7 @@ This guide will help you get the most out of the Warehouse RL Training Lab. Whet
 ## 📚 Table of Contents
 
 1. [Getting Started](#getting-started)
-2. [Curriculum Learning](#curriculum-learning-recommended)
+2. [Difficulty Progression](#difficulty-progression-recommended)
 3. [Parameter Tuning](#parameter-tuning)
 4. [Model Management](#model-management)
 5. [Debugging & Troubleshooting](#debugging--troubleshooting)
@@ -25,7 +25,7 @@ This guide will help you get the most out of the Warehouse RL Training Lab. Whet
 1. **Start with the default settings** – The UI dashboard comes with sensible defaults
 2. **Run the simple task first** – Don't jump straight to hard mode
 3. **Watch for 5-10 minutes** – Get a feel for how the agent explores and learns
-4. **Check the reward graph** – Look for upward trends in the 50-episode moving average
+4. **Check the reward graph** – Look for an upward trend in the orange line (20-episode moving average)
 
 ### Understanding What "Good" Looks Like
 
@@ -41,9 +41,16 @@ This guide will help you get the most out of the Warehouse RL Training Lab. Whet
 
 ---
 
-## 📈 Curriculum Learning (Recommended)
+## 📈 Difficulty Progression (Recommended)
 
-The most effective way to train a powerful agent is **curriculum learning**: start easy, gradually increase difficulty.
+Start with an easy configuration and move to harder ones only once the easy one trains well.
+
+> **Each stage is a separate training run with a new network.** No weights carry over
+> between stages: a saved model can only be loaded into the *same* grid size and package
+> count (see [Loading Models](#loading-models)). This is a progression for *you* – it lets you
+> confirm that your setup and hyperparameters work on a task that learns in minutes before you
+> spend longer on harder ones. It is not curriculum learning in the sense of one agent
+> carrying its knowledge from stage to stage.
 
 ### The Proven Progression
 
@@ -68,7 +75,7 @@ Learning Rate: 1.0e-03
 - How to reach delivery zone
 - Core mechanics of pickup/dropoff
 
-**Checkpoint:** ✅ If average reward > +6, **SAVE THIS MODEL** as `model_stage1_8x8_1pkg.zip`
+**Checkpoint:** ✅ If average reward > +6, **SAVE MODEL**, then copy the run's `model.zip` to `models/model_stage1_8x8_1pkg.zip` (see [Saving Models](#saving-models))
 
 ---
 
@@ -82,9 +89,7 @@ Timesteps: 150k (more training!)
 Learning Rate: 1.0e-03
 ```
 
-**Options:**
-- **A) Transfer Learning (Faster):** Load saved Stage 1 model, then train
-- **B) Fresh Start (More Robust):** Don't load, train from scratch
+**Train fresh.** The Stage 1 model cannot be loaded here: grid size and package count both changed, so the observation space differs.
 
 **Expected results:**
 - Reward: **+2 to +6** average (lower because harder)
@@ -96,7 +101,7 @@ Learning Rate: 1.0e-03
 - Route optimization
 - Prioritization (which package first?)
 
-**Checkpoint:** ✅ If moving average stabilizes and stops degrading, **SAVE** as `model_stage2_10x10_2pkg.zip`
+**Checkpoint:** ✅ If moving average stabilizes and stops degrading, **SAVE MODEL** and copy it to `models/model_stage2_10x10_2pkg.zip`
 
 ---
 
@@ -110,8 +115,7 @@ Timesteps: 200k
 Learning Rate: 1.0e-03
 ```
 
-**Options:**
-- Load Stage 2 model OR train fresh (both work)
+**Train fresh** (the Stage 2 model cannot be loaded into a different configuration).
 
 **Expected results:**
 - Reward: **-2 to +2** average (harder = lower rewards)
@@ -123,7 +127,7 @@ Learning Rate: 1.0e-03
 - Larger grid navigation
 - How to handle tight time constraints
 
-**Checkpoint:** ✅ **SAVE** as `model_stage3_12x12_3pkg.zip`
+**Checkpoint:** ✅ **SAVE MODEL** and copy it to `models/model_stage3_12x12_3pkg.zip`
 
 ---
 
@@ -146,20 +150,17 @@ Learning Rate: 1.0e-03
 
 ---
 
-### Why Curriculum Learning Works
+### Why Start Easy
 
 ```
-Without curriculum learning:
-Grid 15×15, 5 packages → Agent sees billions of possible states
-                       → Takes millions of steps to find a single delivery
-                       → Very sparse reward signal
-                       → Learning is slow or fails
+Starting at 15×15, 5 packages:
+  → A failed run takes a long time to look like a failure
+  → You cannot tell a broken setup from a hard task
 
-With curriculum learning:
-Stage 1: Learn core mechanics quickly → High reward signal → Agent builds intuition
-Stage 2: Add complexity gradually → Still sees successes → Learns new skills
-Stage 3: Increase difficulty → Agent has foundation → Learning accelerates
-Stage 4: Go hard → Agent has learned representations → Can tackle complex tasks
+Starting at 8×8, 1 package:
+  → Learns in minutes, so a flat graph means something is wrong
+  → Hyperparameters that work here are a reasonable starting point for harder stages
+  → You learn what each stage's reward curve should look like
 ```
 
 ---
@@ -181,7 +182,7 @@ Stage 4: Go hard → Agent has learned representations → Can tackle complex ta
 | Value | Use Case | Notes |
 |-------|----------|-------|
 | 1 | Foundational | Best for first-time learning |
-| 2-3 | Multi-objective | Good sweet spot for curriculum |
+| 2-3 | Multi-objective | Good middle stages of the progression |
 | 4-5 | Advanced | Requires much more training |
 
 ⚠️ **Each additional package multiplies complexity exponentially!**
@@ -238,33 +239,48 @@ Stage 4: Go hard → Agent has learned representations → Can tackle complex ta
 **How to save:**
 1. Watch training until it stabilizes (5-20 minutes)
 2. Check the reward graph for upward/stable trend
-3. Click **[SAVE MODEL]** button
-4. Model saves to `warehouse_dqn_model.zip`
+3. Click **[SAVE MODEL]** button (works while training or paused, too)
+4. Model saves to `runs/<run>/model.zip`, with its replay buffer next to it
+
+Every START gets its own folder under `runs/`, named after the time, grid size,
+package count and seed (e.g. `runs/20261016-153012_g8_p1_s0/`), so a new run
+never overwrites an earlier model. A run that completes saves its model
+automatically; a stopped run saves only when you click SAVE MODEL. The folder
+also holds `config.json` (the run's settings), `0.monitor.csv` (per-episode
+reward and length) and SB3's training metrics (`progress.csv` and TensorBoard
+files: `tensorboard --logdir runs`). Every 10,000 steps a checkpoint (model and
+replay buffer) is also written to `runs/<run>/checkpoints/`.
 
 **Naming convention (manual):**
 ```bash
-mv warehouse_dqn_model.zip models/model_stage1_8x8_1pkg.zip
-mv warehouse_dqn_model.zip models/model_stage2_10x10_2pkg.zip
-mv warehouse_dqn_model.zip models/model_stage3_12x12_3pkg.zip
+cp runs/<run>/model.zip models/model_stage1_8x8_1pkg.zip
 ```
 
 ### Loading Models
 
+**LOAD MODEL** selects the most recently saved `runs/*/model.zip` and sets the
+Grid Size, Packages, Max Steps and Step Cost sliders to the values it was trained
+with. The next START **resumes** that model: its weights, optimizer state,
+hyperparameters, step count and replay buffer all carry on, and the agent
+sliders (learning rate, epsilon, buffer) do not apply to the resumed run. The
+resumed run writes to a new run folder.
+
 **When you can load:**
 ✅ Same environment configuration (same grid size and package count)
-❌ Different environment (will crash)
+❌ Different grid size or package count (training stops with an error)
 
-**Transfer learning workflow:**
+**Moving to a new configuration:**
 ```
-1. Save model trained on 8×8, 1 pkg
+1. Save model trained on 8×8, 1 pkg (keep it for later 8×8, 1 pkg runs)
 2. Set grid to 10×10, packages to 2
-3. Train the model fresh on new task (don't load!)
-   → Agent learns to adapt its knowledge
+3. Train fresh on the new task (don't load!)
+   → This is a new network; nothing is transferred from the 8×8 model
 ```
 
-**Why not load a 1-pkg model into 2-pkg environment?**
-- Neural network input shape changes (12 dims → 15 dims)
-- Saved weights won't fit new network
+**Why not load a 1-pkg model into a 2-pkg environment, or an 8×8 model into 10×10?**
+- The observation space is saved with the model, and SB3 refuses to load into a different one
+- Package count changes the input size (6 dims → 9 dims), so the saved weights don't fit
+- Grid size changes the observation bounds, which also counts as a different space
 - You'll get: `"Observation spaces do not match" error`
 
 ---
@@ -273,22 +289,24 @@ mv warehouse_dqn_model.zip models/model_stage3_12x12_3pkg.zip
 
 ### Issue: Model crashes on load with "Observation spaces do not match"
 
-**Cause:** Loaded model was trained with different package count
+**Cause:** The loaded model was trained with a different grid size or package count. The model is loaded when you press START, so the error appears then (state shows ERROR). LOAD MODEL sets these sliders for you, so this happens only if you change them between LOAD and START.
 
 **Solution:**
-1. Use **RESET STATS**
-2. Match the package count to the saved model
-3. Then load the model
+1. Click **LOAD MODEL** again (it resets Grid Size and Packages to the saved model's values)
+2. Click **START TRAINING** without changing them
+
+(RESET STATS only clears the displayed graph and metrics; it has no effect on loading.)
 
 **Example:**
 - Saved model: 8×8, 1 package
 - Can load into: 8×8, 1 package ✓
 - Cannot load into: 8×8, 2 packages ✗
+- Cannot load into: 10×10, 1 package ✗
 
 ### Issue: Agent isn't improving (flat reward graph)
 
 **Checklist:**
-1. ✅ Is training actually running? (Check FPS in bottom right)
+1. ✅ Is training actually running? (Check that Total Steps keeps increasing)
 2. ✅ Are timesteps high enough? (100k minimum, 200k+ better)
 3. ✅ Is the task too hard? (Try easier configuration first)
 4. ✅ Is learning rate reasonable? (1e-3 is default, try 1e-4 if unstable)
@@ -297,18 +315,18 @@ mv warehouse_dqn_model.zip models/model_stage3_12x12_3pkg.zip
 **Fix:**
 - Reduce difficulty (smaller grid, fewer packages)
 - Increase timesteps to 200k-300k
-- Try curriculum learning progression
+- Follow the difficulty progression
 
-### Issue: Training is too slow (FPS is 20-30)
+### Issue: Training is too slow
 
-**Cause:** Task is too complex or machine is busy
+**Measure it first:** training speed is **Total Steps ÷ Elapsed** in the PERFORMANCE panel.
+The **UI FPS** figure is how often the dashboard redraws (capped at 60); it does not measure training speed.
 
 **Solutions:**
-1. Reduce grid size
-2. Reduce package count
-3. Lower max_steps
-4. Close other applications
-5. Accept slower training (it still works!)
+1. Lower **Timesteps** for quick experiments
+2. Use an easier configuration, which needs fewer timesteps to learn
+3. Close other applications
+4. Accept slower training (it still works!)
 
 ### Issue: Agent gets stuck in one location
 
@@ -340,21 +358,11 @@ Config C: Grid=8, Pkg=1, LR=1e-2  → Is faster unstable?
 3. Run Config C → Save as `exp_c.zip` → Note final average reward
 4. Compare results
 
-### Experiment: Transfer Learning Effectiveness
+### Transfer Between Configurations: Not Supported
 
-**Question:** Does loading a trained model help or hurt on a new task?
-
-**Test:**
-```
-Path A (Transfer):
-  1. Train on 8×8, 1 pkg → Save
-  2. Load model, train on 10×10, 2 pkg fresh
-  
-Path B (Fresh):
-  1. Train fresh on 10×10, 2 pkg
-  
-Compare: Which learns faster?
-```
+Loading a model trained on one grid size or package count into another is not possible
+(see [Loading Models](#loading-models)), so transfer-learning experiments cannot be run with
+this tool as it stands.
 
 ### Advanced Hyperparameter Sweep
 
@@ -393,8 +401,9 @@ RIGHT: Start with 8×8, 1 package
 WRONG: Start with LR=1e-3, then change to LR=1e-4 halfway through
        → Training becomes inconsistent
 
-RIGHT: Click RESET STATS, adjust all parameters first, then START
-       → Clean training run
+RIGHT: STOP, adjust all parameters, then START
+       → START always begins a new run with the current settings
+       (sliders moved during a run only apply at the next START)
 ```
 
 ### ❌ Mistake #3: Expecting Immediate Results
@@ -407,22 +416,22 @@ RIGHT: Train for at least 10 minutes
        → Patience is key!
 ```
 
-### ❌ Mistake #4: Not Using Curriculum Learning
+### ❌ Mistake #4: Skipping the Easy Stages
 
 ```
-WRONG: Train 8×8, 1 pkg → then 8×8, 5 pkg
-       → Agent doesn't transfer knowledge from 1 pkg to 5 pkg
+WRONG: Go straight from 8×8, 1 pkg to 15×15, 5 pkg
+       → Long runs before you can tell whether anything is wrong
 
-RIGHT: Follow curriculum progression
-       → Each stage builds on previous
-       → Knowledge compounds
+RIGHT: Follow the difficulty progression
+       → Confirm each stage trains before moving on
+       → Each stage is still a fresh run (no weights carry over)
 ```
 
 ### ❌ Mistake #5: Loading Wrong Model Version
 
 ```
 WRONG: Train 12×12, 3 pkg model → save
-       Then try loading into 15×15, 5 pkg → crash!
+       Then try loading into 15×15, 5 pkg → ERROR: observation spaces do not match
 
 RIGHT: Keep track of model versions
        → Save with descriptive names
@@ -434,7 +443,7 @@ RIGHT: Keep track of model versions
 ```
 WRONG: Look only at episode reward (noisy)
        
-RIGHT: Watch the 50-episode moving average (orange line)
+RIGHT: Watch the 20-episode moving average (orange line)
        → This is the true learning signal
        → Should trend upward over time
 ```
@@ -447,7 +456,7 @@ RIGHT: Watch the 50-episode moving average (orange line)
 
 ```
 Episode Reward (Blue line):  ↗ ↘ ↗ ↘ ↗  (Noisy, but trending up)
-Moving Average (Orange line):  ╱╱╱╱  (Smooth, consistent upward trend)
+20-ep Moving Average (Orange line):  ╱╱╱╱  (Smooth, consistent upward trend)
 ```
 
 ### What Stalled Learning Looks Like
@@ -519,7 +528,7 @@ If things break:
 
 ## 🚀 Next Steps
 
-1. **Complete the curriculum:** Follow Stage 1 → Stage 2 → Stage 3
+1. **Complete the progression:** Follow Stage 1 → Stage 2 → Stage 3
 2. **Save your best models:** Build a model collection
 3. **Experiment:** Try different learning rates or grid sizes
 4. **Compare:** Which configuration learns fastest?
@@ -532,7 +541,7 @@ If things break:
 - [DQN Paper](https://arxiv.org/abs/1312.5602) - Original Deep Q-Network algorithm
 - [Stable Baselines3 Docs](https://stable-baselines3.readthedocs.io/) - Implementation details
 - [Gymnasium Docs](https://gymnasium.farama.org/) - Environment design
-- [RL Curriculum Learning](https://arxiv.org/abs/2003.12236) - Why we start easy
+- [RL Curriculum Learning](https://arxiv.org/abs/2003.12236) - Background on curriculum learning (weight transfer between stages, which this tool does not do)
 
 ---
 
@@ -541,15 +550,14 @@ If things break:
 ### Pro Tip #1: Keyboard Shortcuts
 ```
 SPACE → Pause/Resume training
-S     → Save model (after pausing)
+S     → Save model (any time, including while training or paused)
 R     → Reset stats
 Q/ESC → Exit
 ```
 
-### Pro Tip #2: Monitor the FPS
-- 50-60 FPS = Normal
-- 30-50 FPS = Task getting hard
-- <30 FPS = Consider reducing difficulty
+### Pro Tip #2: Watch Total Steps, Not FPS
+- **UI FPS** is the dashboard's redraw rate (capped at 60); it does not reflect training speed or task difficulty
+- **Total Steps ÷ Elapsed** is the training speed
 
 ### Pro Tip #3: Use the Mini Graph
 The reward history in the right panel shows last 100 episodes. Watch for:

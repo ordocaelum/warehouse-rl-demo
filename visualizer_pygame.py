@@ -1,14 +1,18 @@
 """
 PyGame-based live visualizer for warehouse RL training.
 
-Runs in a separate thread and receives state updates via a thread-safe queue.
-The training loop runs on the main thread (CPU) and pushes updates via put_update().
+The window runs on the main thread (pygame/SDL requires this on macOS) via
+run(); training runs in a background thread and pushes updates via
+put_update(). Updates go through a keep-latest slot (see latest_slot.py), so
+the display always shows the newest state.
 """
 
-import queue
+import collections
 import threading
 import time
 from typing import List, Optional
+
+from latest_slot import LatestSlot
 
 try:
     import pygame
@@ -23,9 +27,8 @@ CELL_SIZE = 60          # pixels per grid cell (base zoom level)
 PANEL_WIDTH = 280       # right-hand metrics panel
 FPS_CAP = 60
 GRID_SIZE = 8
-# Buffer enough frames for ~2 seconds at 60 FPS to absorb bursts without
-# slowing the training thread; excess updates are silently dropped.
-UPDATE_QUEUE_SIZE = 120
+# Completed-episode returns kept for the sparkline.
+REWARD_HISTORY_LEN = 200
 
 # Colours (R, G, B)
 COL_BG           = (30,  30,  40)
@@ -52,9 +55,10 @@ class WarehouseVisualizer:
     Typical usage from a training script::
 
         viz = WarehouseVisualizer(grid_size=8)
-        viz.start()                  # opens window in background thread
+        # start training in a background thread, then on the main thread:
+        viz.run()                    # blocks until the window closes or stop()
 
-        # inside training callback:
+        # inside the training callback (training thread):
         viz.put_update({
             "episode":      episode_num,
             "step":         step_num,
@@ -66,9 +70,13 @@ class WarehouseVisualizer:
             "packages":     [[x, y, delivered], ...],
             "carrying":     -1 or package_index,
             "grid_size":    8,
+            "delivery_zone": [x, y],
         })
 
-        viz.stop()                   # signal visualizer to close
+        # once per finished episode:
+        viz.put_episode_reward(episode_return)
+
+        viz.stop()                   # from any thread: close the window
     """
 
     def __init__(self, grid_size: int = GRID_SIZE):
@@ -79,9 +87,10 @@ class WarehouseVisualizer:
             )
 
         self.grid_size = grid_size
-        self._queue: queue.Queue = queue.Queue(maxsize=UPDATE_QUEUE_SIZE)
+        # Newest per-step update; training never waits on the display.
+        self._updates = LatestSlot()
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._running = False  # True while run() has the window open
 
         # State mirrored from the training loop
         self._state = {
@@ -95,6 +104,7 @@ class WarehouseVisualizer:
             "packages":  [],
             "carrying":  -1,
             "grid_size": grid_size,
+            "delivery_zone": None,  # None until the first update: bottom-right
         }
 
         # Visualizer-local mutable properties
@@ -106,32 +116,35 @@ class WarehouseVisualizer:
         self._dragging = False
         self._drag_start = (0, 0)
         self._pan_start = (0, 0)
-        self._reward_history: List[float] = []
+        # Completed-episode returns. Written by the training thread, read by
+        # the render thread, hence the lock. Never dropped, unlike updates.
+        self._reward_history = collections.deque(maxlen=REWARD_HISTORY_LEN)
+        self._reward_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
-        """Start the visualizer in a background daemon thread."""
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-
     def stop(self) -> None:
-        """Signal the visualizer to shut down and wait for its thread."""
+        """Ask run() to close the window and return. Safe from any thread."""
         self._stop_event.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=3)
 
     def put_update(self, state: dict) -> None:
         """
         Non-blocking push of a training-state snapshot to the visualizer.
-        Drops the update if the queue is full to prevent training slowdown.
+        Replaces any update not yet drawn, so each frame shows the newest state.
         """
-        try:
-            self._queue.put_nowait(state)
-        except queue.Full:
-            pass  # visualizer is behind; skip frame
+        self._updates.put(state)
+
+    def put_episode_reward(self, episode_reward: float) -> None:
+        """Record the return of a finished episode for the reward sparkline."""
+        with self._reward_lock:
+            self._reward_history.append(float(episode_reward))
+
+    def reward_history(self) -> List[float]:
+        """Returns of the most recent finished episodes, oldest first."""
+        with self._reward_lock:
+            return list(self._reward_history)
 
     def is_paused(self) -> bool:
         """Return True while training is paused by the user."""
@@ -149,13 +162,19 @@ class WarehouseVisualizer:
 
     def is_running(self) -> bool:
         """Return True if the visualizer window is still open."""
-        return self._thread is not None and self._thread.is_alive()
+        return self._running
 
     # ------------------------------------------------------------------
-    # Internal rendering loop (runs in background thread)
+    # Rendering loop (call on the main thread)
     # ------------------------------------------------------------------
 
-    def _run(self) -> None:
+    def run(self) -> None:
+        """Open the window and render until it is closed or stop() is called.
+
+        Call this on the main thread: SDL's window and event handling must
+        run there on macOS. Training should run in another thread.
+        """
+        self._running = True
         pygame.init()
         cell = int(CELL_SIZE * self._zoom)
         grid_px = cell * self.grid_size
@@ -171,13 +190,10 @@ class WarehouseVisualizer:
 
         try:
             while not self._stop_event.is_set():
-                # --- drain the update queue ---------------------------------
-                try:
-                    while True:
-                        update = self._queue.get_nowait()
-                        self._merge_state(update)
-                except queue.Empty:
-                    pass
+                # --- newest update, if any ---------------------------------
+                has_update, update = self._updates.take()
+                if has_update:
+                    self._merge_state(update)
 
                 # --- handle pygame events -----------------------------------
                 for event in pygame.event.get():
@@ -236,6 +252,7 @@ class WarehouseVisualizer:
                 clock.tick(FPS_CAP)
 
         finally:
+            self._running = False
             pygame.quit()
 
     # ------------------------------------------------------------------
@@ -245,11 +262,6 @@ class WarehouseVisualizer:
     def _merge_state(self, update: dict) -> None:
         """Merge an incoming training-state snapshot into local state."""
         self._state.update(update)
-        ep_r = update.get("ep_reward")
-        if ep_r is not None:
-            self._reward_history.append(ep_r)
-            if len(self._reward_history) > 200:
-                self._reward_history = self._reward_history[-200:]
 
     # ------------------------------------------------------------------
     # Drawing helpers
@@ -283,8 +295,7 @@ class WarehouseVisualizer:
         oy = self._pan_y
 
         # --- delivery zone --------------------------------------------------
-        dz_x = gs - 1
-        dz_y = gs - 1
+        dz_x, dz_y = state.get("delivery_zone") or (gs - 1, gs - 1)
         pygame.draw.rect(
             screen, COL_DELIVERY,
             (ox + dz_x * cell, oy + dz_y * cell, cell, cell)
@@ -389,6 +400,13 @@ class WarehouseVisualizer:
         screen.blit(surf, (x, y))
         y += surf.get_height() + 4
 
+        # steps whose state was replaced before a frame could draw it
+        surf = font_small.render(
+            f"Not drawn: {self._updates.overwritten:,} steps", True, COL_BORDER
+        )
+        screen.blit(surf, (x, y))
+        y += surf.get_height() + 4
+
         # carrying status
         y += 8
         label("== AGENT ==", font=font_medium)
@@ -408,10 +426,11 @@ class WarehouseVisualizer:
         y += surf.get_height() + 4
 
         # mini reward history sparkline
-        if len(self._reward_history) >= 2:
+        history = self.reward_history()
+        if len(history) >= 2:
             y += 12
             label("== REWARD HISTORY ==", font=font_small)
-            self._draw_sparkline(screen, font_small, x, y, PANEL_WIDTH - 24, 60)
+            self._draw_sparkline(screen, font_small, history, x, y, PANEL_WIDTH - 24, 60)
             y += 72
 
         # controls legend
@@ -433,13 +452,14 @@ class WarehouseVisualizer:
         self,
         screen: "pygame.Surface",
         font: "pygame.font.Font",
+        history: List[float],
         x: int,
         y: int,
         w: int,
         h: int,
     ) -> None:
         """Draw a tiny sparkline of recent episode rewards."""
-        data = self._reward_history[-w:]  # up to w most recent reward data points
+        data = history[-w:]  # up to w most recent episode returns
         if len(data) < 2:
             return
         mn = min(data)

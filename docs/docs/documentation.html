@@ -21,13 +21,15 @@ toc:
   <ol>
     <li>Clone repository and enter project directory.</li>
     <li>Create and activate virtual environment.</li>
-    <li>Install dependencies from requirements file.</li>
+    <li>Install dependencies from the lock file.</li>
   </ol>
+  <p>Use Python 3.12 or 3.13: numpy 2.5 needs 3.12 or later, and pygame 2.6.1 has no Python 3.14 wheels.</p>
   {% include code-block.html code="git clone https://github.com/ordocaelum/warehouse-rl-demo.git
 cd warehouse-rl-demo
 python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt" %}
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.lock" %}
+  <p><code>requirements.lock</code> pins every package, including transitive ones, for all platforms; it is what the test suite was run with. <code>requirements.txt</code> pins only the direct dependencies.</p>
 </section>
 
 <section id="interactive-lab">
@@ -47,32 +49,66 @@ pip install -r requirements.txt" %}
         <tr><td>Final Epsilon</td><td>0.01-0.3</td><td>0.1</td><td>Final exploration floor</td></tr>
         <tr><td>Buffer</td><td>1k-50k</td><td>10k</td><td>Replay memory size</td></tr>
         <tr><td>Step Cost</td><td>0.01-0.5</td><td>0.05</td><td>Per-step penalty</td></tr>
+        <tr><td>Seed</td><td>0-999</td><td>0</td><td>Random seed for the environment, agent and torch</td></tr>
       </tbody>
     </table>
   </div>
+  <p>The right panel shows the episode, step, reward and 50-episode average reward (Avg(50ep)); total steps, elapsed time and UI FPS (the redraw rate, capped at 60; training speed is Total Steps &divide; Elapsed); and a reward graph of the last 100 episodes with a 20-episode moving average (orange).</p>
+  <h3>Control Buttons</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Button</th><th>Shortcut</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>START TRAINING</td><td>&mdash;</td><td>Begin a new run with the current slider settings</td></tr>
+        <tr><td>PAUSE / RESUME</td><td>Space</td><td>Pause or resume the training loop</td></tr>
+        <tr><td>STOP</td><td>&mdash;</td><td>Stop training; a stopped run is not saved unless you click SAVE MODEL</td></tr>
+        <tr><td>SAVE MODEL</td><td>S</td><td>Save the model and replay buffer to <code>runs/&lt;run&gt;/model.zip</code>; works while training or paused</td></tr>
+        <tr><td>LOAD MODEL</td><td>&mdash;</td><td>Select the most recent saved model and set Grid Size, Packages, Max Steps and Step Cost to match it; the next START resumes it (weights, optimizer, hyperparameters, step count, replay buffer)</td></tr>
+        <tr><td>RESET STATS</td><td>R</td><td>Clear the reward graph and displayed metrics</td></tr>
+        <tr><td>EXIT</td><td>Q / Esc</td><td>Stop training and close the window</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A model loads only into the grid size and package count it was trained on. Each START writes to a new folder under <code>runs/</code>, so a run never overwrites an earlier model.</p>
 </section>
 
 <section id="cli-training">
   <h2>Command-Line Training</h2>
   {% include code-block.html code="python train_agent.py" %}
   <ul>
-    <li>Trains DQN for default 100,000 timesteps.</li>
-    <li>Saves model as <code>warehouse_dqn_model.zip</code>.</li>
-    <li>Generates <code>training_progress.png</code>.</li>
-    <li>Runs inference test episodes.</li>
+    <li>Trains DQN for 100,000 timesteps by default (<code>--timesteps</code>).</li>
+    <li>Saves the model as <code>runs/&lt;run&gt;/model.zip</code>, with its replay buffer next to it.</li>
+    <li>Generates <code>runs/&lt;run&gt;/training_progress.png</code>.</li>
+    <li>Tests the agent on 3 episodes, on the configuration it was trained on.</li>
   </ul>
+  <p>Options: <code>--timesteps</code>, <code>--seed</code>, <code>--grid-size</code>, <code>--packages</code>, <code>--max-steps</code>, <code>--step-cost</code>, <code>--checkpoint-freq</code>, <code>--runs-dir</code>.</p>
+  <h3>Run Folders</h3>
+  <p>Every run, from the command line or the dashboard, writes to its own folder, <code>runs/&lt;YYYYmmdd-HHMMSS&gt;_g&lt;grid&gt;_p&lt;packages&gt;_s&lt;seed&gt;/</code>:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>File</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td><code>config.json</code></td><td>Environment and agent settings, seed, timesteps, Python and library versions</td></tr>
+        <tr><td><code>model.zip</code>, <code>model_replay_buffer.pkl</code></td><td>The trained model (SB3 format) and its replay buffer</td></tr>
+        <tr><td><code>checkpoints/</code></td><td>Model and replay buffer every 10,000 steps (<code>--checkpoint-freq</code>)</td></tr>
+        <tr><td><code>0.monitor.csv</code></td><td>Reward, length and wall time of every episode</td></tr>
+        <tr><td><code>progress.csv</code>, <code>events.out.tfevents.*</code></td><td>SB3 training metrics; view with <code>tensorboard --logdir runs</code></td></tr>
+        <tr><td><code>train.log</code>, <code>training_progress.png</code></td><td>Command-line runs only: console log and reward plot</td></tr>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section id="visualizer">
   <h2>Live Visualizer</h2>
   {% include code-block.html code="python train_agent.py --visualize" %}
-  <p>The visualizer runs on a background daemon thread and consumes queue-based state updates to avoid blocking training execution.</p>
+  <p>The visualizer's window runs on the main thread (pygame/SDL requires this on macOS) and training runs in a background thread, so neither waits on the other. Training produces one state update per step, more than the display can draw, so updates go through a keep-latest slot (<code>latest_slot.py</code>): training never waits, each frame draws the newest state, and the panel shows how many steps were not drawn. Episode returns use a separate channel, so none are lost. Closing the window early lets training finish without display.</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Control</th><th>Effect</th></tr></thead>
       <tbody>
         <tr><td>Space</td><td>Pause or resume training</td></tr>
-        <tr><td>S (while paused)</td><td>Step one episode</td></tr>
+        <tr><td>S (while paused)</td><td>Run to the end of the current episode, then pause on its final frame</td></tr>
         <tr><td>Arrow Up/Down or mouse wheel</td><td>Zoom</td></tr>
         <tr><td>Mouse drag</td><td>Pan grid</td></tr>
         <tr><td>R</td><td>Reset zoom and pan</td></tr>
@@ -105,13 +141,14 @@ env = WarehouseEnv(max_steps=400, step_cost=0.02)" %}
     </table>
   </div>
   <h3>Observation Space</h3>
-  <p>For one package: six dimensions (agent x/y, carrying status, package x/y, delivered status). Additional packages append three dimensions each.</p>
+  <p>For one package: six dimensions (agent x/y, carrying status, package x/y, delivered status). Additional packages append three dimensions each. A package's x/y is where it currently is: its pickup cell while waiting, the agent's cell while carried, the delivery zone once delivered.</p>
   <h3>Reward Structure</h3>
   <ul>
     <li>+10 deliver package</li>
     <li>+1 pick up package</li>
-    <li>+0.1 per step reducing nearest-package distance</li>
-    <li>-0.01 multiplied by nearest package distance</li>
-    <li>-0.05 per step as baseline movement penalty</li>
+    <li>+0.1 for a move that reduces the distance to the nearest undelivered package</li>
+    <li>-0.01 multiplied by that distance, after each move</li>
+    <li>-Step Cost every step (default 0.05), including actions that change nothing</li>
   </ul>
+  <p>The two distance terms apply only to move actions taken while not carrying a package.</p>
 </section>

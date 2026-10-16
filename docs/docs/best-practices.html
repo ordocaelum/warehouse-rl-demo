@@ -5,10 +5,12 @@ description: Practical strategies for tuning, troubleshooting, and stable model 
 toc:
   - id: getting-started
     title: Getting Started
-  - id: curriculum
-    title: Curriculum Learning
+  - id: progression
+    title: Difficulty Progression
   - id: tuning
     title: Parameter Tuning
+  - id: models
+    title: Saving and Loading
   - id: troubleshooting
     title: Debugging
   - id: mistakes
@@ -36,23 +38,24 @@ toc:
   </div>
 </section>
 
-<section id="curriculum">
-  <h2>Curriculum Learning</h2>
+<section id="progression">
+  <h2>Difficulty Progression</h2>
+  <p>Start with an easy configuration and move to harder ones only once the easy one trains well. <strong>Each stage is a separate training run with a new network</strong>: a saved model can only be loaded into the same grid size and package count, so no weights carry over between stages. This is not curriculum learning in the sense of one agent carrying its knowledge from stage to stage.</p>
   <details class="collapsible" open>
     <summary>Stage 1 · 8x8, 1 package</summary>
     <p>Train for 100k timesteps. Save checkpoint when average reward stays above +6.</p>
   </details>
   <details class="collapsible">
     <summary>Stage 2 · 10x10, 2 packages</summary>
-    <p>Train for 150k timesteps. Track multi-objective routing improvements.</p>
+    <p>Train fresh for 150k timesteps (the Stage 1 model cannot be loaded here). Track multi-objective routing improvements.</p>
   </details>
   <details class="collapsible">
     <summary>Stage 3 · 12x12, 3 packages</summary>
-    <p>Train for 200k timesteps. Expect noisier curve with gradual upward trend.</p>
+    <p>Train fresh for 200k timesteps. Expect noisier curve with gradual upward trend.</p>
   </details>
   <details class="collapsible">
     <summary>Stage 4 · 15x15, 3-5 packages</summary>
-    <p>Train for 300k+ timesteps. Evaluate stability and delivery consistency.</p>
+    <p>Train fresh for 300k+ timesteps. Evaluate stability and delivery consistency.</p>
   </details>
 </section>
 
@@ -72,19 +75,29 @@ toc:
   </div>
 </section>
 
+<section id="models">
+  <h2>Saving and Loading Models</h2>
+  <ul>
+    <li><strong>SAVE MODEL</strong> (or <strong>S</strong>) works while training or paused. It writes <code>runs/&lt;run&gt;/model.zip</code> and the replay buffer next to it.</li>
+    <li>Every START gets its own folder under <code>runs/</code>, so a new run never overwrites an earlier model. A run that completes saves automatically; a stopped run is saved only if you click SAVE MODEL.</li>
+    <li><strong>LOAD MODEL</strong> selects the most recent <code>runs/*/model.zip</code> and sets Grid Size, Packages, Max Steps and Step Cost to the values it was trained with. The next START resumes it: weights, optimizer state, hyperparameters, step count and replay buffer. The agent sliders do not apply to a resumed run.</li>
+    <li>A model loads only into the same grid size and package count. For a new configuration, train fresh.</li>
+  </ul>
+</section>
+
 <section id="troubleshooting">
   <h2>Debugging Checklist</h2>
   <details class="collapsible" open>
     <summary>Observation spaces do not match</summary>
-    <p>Loaded checkpoint was trained with a different package count. Match configuration before loading.</p>
+    <p>The loaded model was trained with a different grid size or package count. LOAD MODEL sets those sliders for you, so this happens only if they were changed between LOAD and START: click LOAD MODEL again and START without changing them. (RESET STATS only clears the displayed graph and metrics; it does not affect loading.)</p>
   </details>
   <details class="collapsible">
     <summary>Flat reward graph</summary>
     <p>Lower difficulty, increase timesteps, and verify training loop is actively running.</p>
   </details>
   <details class="collapsible">
-    <summary>Low FPS during training</summary>
-    <p>Reduce map size or package count, and close competing CPU-intensive applications.</p>
+    <summary>Training seems slow</summary>
+    <p>Measure it first: training speed is <strong>Total Steps &divide; Elapsed</strong> in the PERFORMANCE panel. <strong>UI FPS</strong> is how often the dashboard redraws (capped at 60); it does not measure training speed. To finish sooner, lower Timesteps or use an easier configuration, which needs fewer timesteps to learn, and close CPU-intensive applications.</p>
   </details>
 </section>
 
@@ -92,9 +105,9 @@ toc:
   <h2>Common Mistakes</h2>
   <div class="feature-grid">
     <article class="callout"><strong>Jumping to hard tasks too early</strong><p>Begin with foundational settings and scale gradually.</p></article>
-    <article class="callout"><strong>Changing parameters mid-run</strong><p>Reset stats and start a fresh session after parameter updates.</p></article>
+    <article class="callout"><strong>Changing parameters mid-run</strong><p>Sliders moved during a run apply only at the next START. STOP, adjust, then START, which begins a new run.</p></article>
     <article class="callout"><strong>Expecting immediate convergence</strong><p>Allow sufficient episodes before evaluating quality.</p></article>
-    <article class="callout"><strong>Ignoring moving average</strong><p>Track trend line, not noisy episode spikes.</p></article>
+    <article class="callout"><strong>Ignoring moving average</strong><p>Track the orange 20-episode moving average, not noisy episode spikes.</p></article>
   </div>
 </section>
 
@@ -108,5 +121,6 @@ toc:
   {% include code-block.html code="First experiment:
 Grid 8, Packages 1, Max Steps 300, Timesteps 100k, LR 1e-3" %}
   {% include code-block.html code="Scale up:
-Grid 10, Packages 2, Max Steps 300, Timesteps 150k" %}
+Grid 10, Packages 2, Max Steps 300, Timesteps 150k
+Train fresh (an 8x8 model cannot be loaded here)" %}
 </section>

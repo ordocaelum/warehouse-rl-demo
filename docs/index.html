@@ -75,12 +75,12 @@
                         <div class="feature-card">
                             <div class="feature-icon">4</div>
                             <h4>Model Management</h4>
-                            <p>Save, load, and transfer learning between configurations</p>
+                            <p>Save at any time and resume a saved run on the same configuration</p>
                         </div>
                         <div class="feature-card">
                             <div class="feature-icon">5</div>
-                            <h4>Curriculum Learning</h4>
-                            <p>4-stage progression from simple to complex tasks</p>
+                            <h4>Difficulty Progression</h4>
+                            <p>4 suggested stages from simple to complex; each stage trains a fresh network</p>
                         </div>
                         <div class="feature-card">
                             <div class="feature-icon">6</div>
@@ -109,8 +109,9 @@
                             <div class="step-number">2</div>
                             <div class="step-content">
                                 <h4>Install Dependencies</h4>
+                                <p>Python 3.12 or 3.13.</p>
                                 <div class="code-block">
-                                    <code>pip install -r requirements.txt</code>
+                                    <code>pip install -r requirements.lock</code>
                                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                                 </div>
                             </div>
@@ -156,6 +157,7 @@
                             <tr><td>Final Epsilon</td><td>0.01-0.3</td><td>0.1</td><td>Ending exploration rate</td></tr>
                             <tr><td>Buffer (k)</td><td>1k-50k</td><td>10k</td><td>Replay buffer size</td></tr>
                             <tr><td>Step Cost</td><td>0.01-0.5</td><td>0.05</td><td>Per-step reward penalty</td></tr>
+                            <tr><td>Seed</td><td>0-999</td><td>0</td><td>Random seed for the environment, agent and torch</td></tr>
                         </tbody>
                     </table>
 
@@ -179,10 +181,11 @@
                     <ul>
                         <li><strong>+10</strong> for delivering a package to delivery zone</li>
                         <li><strong>+1</strong> for picking up a package</li>
-                        <li><strong>+0.1</strong> bonus for steps reducing distance to nearest package</li>
-                        <li><strong>-0.01 × distance</strong> per step away from nearest package</li>
-                        <li><strong>-0.05</strong> per step (exploration penalty)</li>
+                        <li><strong>+0.1</strong> bonus for a move that reduces the distance to the nearest undelivered package</li>
+                        <li><strong>-0.01 × distance</strong> to the nearest undelivered package, after each move</li>
+                        <li><strong>-Step Cost</strong> every step (default 0.05), including actions that change nothing</li>
                     </ul>
+                    <p>The two distance terms apply only to move actions taken while not carrying a package.</p>
                 </div>
             </div>
         </section>
@@ -190,8 +193,8 @@
         <!-- TUTORIAL TAB -->
         <section id="tutorial" class="tab-content">
             <div class="container">
-                <h2>Curriculum Learning Tutorial</h2>
-                <p class="section-intro">Master reinforcement learning by following a proven 4-stage progression from simple to complex tasks.</p>
+                <h2>Difficulty Progression Tutorial</h2>
+                <p class="section-intro">Work up through four configurations, from simple to complex. Each stage is a separate training run with a new network: a saved model loads only into the same grid size and package count, so no weights carry over between stages.</p>
                 
                 <div class="curriculum-stages">
                     <div class="stage-card stage-1">
@@ -253,8 +256,8 @@
                                 <li>Timesteps: 300k+</li>
                             </ul>
                         </div>
-                        <p class="stage-desc">Agent tackles complex real-world scenarios with many objectives</p>
-                        <p class="stage-reward">Expected Reward: -6 to -12</p>
+                        <p class="stage-desc">A fresh agent on a large grid with many objectives and sparser reward</p>
+                        <p class="stage-reward">Expected Reward: -4 to -6 (3 packages), -8 to -12 (5 packages)</p>
                         <p class="stage-time">Training Time: 30-60 minutes</p>
                     </div>
                 </div>
@@ -298,7 +301,7 @@
                             </div>
                             <div class="mistake">
                                 <h4>Mistake 4: Ignoring the Moving Average</h4>
-                                <p>Watch the orange trend line, not the noisy blue episode rewards.</p>
+                                <p>Watch the orange trend line (20-episode moving average), not the noisy blue episode rewards.</p>
                             </div>
                         </div>
                     </div>
@@ -312,9 +315,12 @@
                                 <li>Before trying new configurations</li>
                                 <li>After significant improvements</li>
                             </ul>
-                            <h4>Transfer Learning</h4>
-                            <p>Load a model trained on 8×8, 1pkg into 10×10, 2pkg for faster learning.</p>
-                            <p><strong>Important:</strong> Only load into SAME environment config, or train fresh on new config.</p>
+                            <p>SAVE MODEL (or <strong>S</strong>) works while training or paused and writes <code>runs/&lt;run&gt;/model.zip</code> with its replay buffer. Every START gets its own run folder, so a new run never overwrites an earlier model.</p>
+                            <h4>Loading</h4>
+                            <p>LOAD MODEL selects the most recent saved model and sets Grid Size, Packages, Max Steps and Step Cost to match it. The next START resumes that model: weights, optimizer state, hyperparameters, step count and replay buffer.</p>
+                            <h4>Moving to a New Configuration</h4>
+                            <p>Train fresh. A model trained on 8×8, 1 package cannot be loaded into 10×10, 2 packages, or into any other grid size or package count: the observation space (including its bounds) is saved with the model, and Stable Baselines3 refuses to load it into a different one.</p>
+                            <p><strong>Important:</strong> Only load into the same grid size and package count. Nothing is transferred between configurations.</p>
                         </div>
                     </div>
                 </div>
@@ -376,24 +382,26 @@
                         <li>Carrying status (0 or 1)</li>
                         <li>For each package: X, Y, delivery_status</li>
                     </ul>
+                    <p>A package's X, Y is where it currently is: its pickup cell while waiting, the agent's cell while carried, the delivery zone once delivered. Coordinates are bounded to [0, grid_size − 1] and flags to {0, 1}; these bounds are part of the observation space, so a model trained on one grid size does not load on another.</p>
 
                     <h3>DQN Parameters</h3>
                     <ul>
                         <li>Learning rate: 1e-3 (adjustable)</li>
                         <li>Replay buffer size: 10k (adjustable)</li>
+                        <li>Learning starts: after 500 steps</li>
                         <li>Target update interval: 500 steps</li>
                         <li>Exploration fraction: 20% of training</li>
                     </ul>
 
-                    <h3>Keyboard Shortcuts</h3>
+                    <h3>Keyboard Shortcuts (Training Lab, <code>ui_dashboard.py</code>)</h3>
                     <table class="params-table">
                         <thead>
                             <tr><th>Key</th><th>Action</th></tr>
                         </thead>
                         <tbody>
                             <tr><td>SPACE</td><td>Pause/Resume training</td></tr>
-                            <tr><td>S</td><td>Save model</td></tr>
-                            <tr><td>R</td><td>Reset stats</td></tr>
+                            <tr><td>S</td><td>Save model to <code>runs/&lt;run&gt;/model.zip</code> (while training or paused)</td></tr>
+                            <tr><td>R</td><td>Reset stats (clears the reward graph and displayed metrics)</td></tr>
                             <tr><td>Q / ESC</td><td>Exit</td></tr>
                         </tbody>
                     </table>
