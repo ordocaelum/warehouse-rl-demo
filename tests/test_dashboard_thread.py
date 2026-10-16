@@ -20,7 +20,7 @@ def _run(stop_immediately):
     results = []
     thread = _TrainingThread(
         dict(PARAMS), queue.Queue(), stop_ev, threading.Event(),
-        on_done=lambda model, error: results.append((model, error)),
+        on_done=lambda t: results.append((t.model, t.error)),
     )
     thread.start()
     thread.join(timeout=60)

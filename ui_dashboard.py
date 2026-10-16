@@ -393,7 +393,7 @@ class _TrainingThread(threading.Thread):
         metrics_q: queue.Queue,
         stop_ev: threading.Event,
         pause_ev: threading.Event,
-        on_done,  # callable(model, error)
+        on_done,  # callable(thread), called from this thread when it finishes
     ) -> None:
         super().__init__(daemon=True)
         self.params   = params
@@ -404,6 +404,7 @@ class _TrainingThread(threading.Thread):
         self.model    = None
         self._env     = None
         self.error: Optional[Exception] = None
+        self.stopped  = False  # learn() returned because STOP was pressed
 
     def run(self) -> None:
         try:
@@ -438,9 +439,10 @@ class _TrainingThread(threading.Thread):
             self.model = model
             cb = _Callback(self._q, self._stop, self._pause)
             model.learn(total_timesteps=int(p["total_timesteps"]), callback=cb)
+            self.stopped = self._stop.is_set()
             # A stopped run is partial: never let it overwrite the saved model.
             # (It stays available to SAVE MODEL explicitly.)
-            if not self._stop.is_set():
+            if not self.stopped:
                 model.save("warehouse_dqn_model")
 
         except Exception as exc:  # noqa: BLE001
@@ -448,7 +450,7 @@ class _TrainingThread(threading.Thread):
         finally:
             if self._env is not None:
                 self._env.close()
-            self._on_done(self.model, self.error)
+            self._on_done(self)
 
 
 # ---------------------------------------------------------------------------
@@ -512,6 +514,9 @@ class Dashboard:
 
         # Threading primitives
         self._metrics_q  = queue.Queue(maxsize=300)
+        # Finished training threads, posted by the thread itself and applied
+        # by the UI thread, which is the only writer of the dashboard state.
+        self._done_q: "queue.Queue[_TrainingThread]" = queue.Queue()
         self._stop_ev    = threading.Event()
         self._pause_ev   = threading.Event()
         self._thread: Optional[_TrainingThread] = None
@@ -579,11 +584,8 @@ class Dashboard:
             except queue.Empty:
                 pass
 
-            # Detect training thread finishing unexpectedly
-            if self._state in ("training", "paused"):
-                if self._thread and not self._thread.is_alive():
-                    if self._state not in ("done", "error", "idle"):
-                        self._state = "done"
+            # Apply the result of a training thread that has finished
+            self._apply_finished()
 
             # ── Event handling ───────────────────────────────────────────────
             for event in pygame.event.get():
@@ -658,6 +660,9 @@ class Dashboard:
     def _cmd_start(self) -> None:
         if self._state in ("training", "paused"):
             return
+        if self._thread and self._thread.is_alive():
+            self._model_status = "Previous run still stopping"
+            return
         if not _SB3_AVAILABLE or not _ENV_AVAILABLE:
             self._model_status = "Missing dependencies – cannot train"
             return
@@ -692,7 +697,11 @@ class Dashboard:
             self._stop_ev.set()
             self._pause_ev.clear()     # ensure training loop can exit
             self._thread.join(timeout=6)
-        self._state = "idle"
+        self._apply_finished()
+        if self._state in ("training", "paused"):
+            # Did not finish within the timeout; its result is applied
+            # (as stopped) whenever it arrives.
+            self._state = "idle"
         self._btns["PAUSE"].label = "PAUSE"
 
     def _cmd_save(self) -> None:
@@ -715,16 +724,30 @@ class Dashboard:
         self._ep_rewards = []
         self._metrics    = {}
 
-    def _on_done(self, model, error: Optional[Exception]) -> None:
-        """Called from the training thread when training finishes."""
-        self._model = model
-        if error:
-            self._state        = "error"
-            self._err_msg      = str(error)
-            self._model_status = f"Error during training"
-        else:
-            self._state        = "done"
-            self._model_status = "Trained (unsaved)"
+    def _on_done(self, thread: "_TrainingThread") -> None:
+        """Called from the training thread when it finishes; only posts a message."""
+        self._done_q.put(thread)
+
+    def _apply_finished(self) -> None:
+        """Apply finished-thread results.  UI thread only."""
+        while True:
+            try:
+                thread = self._done_q.get_nowait()
+            except queue.Empty:
+                return
+            if thread is not self._thread:
+                continue  # result of an earlier run; a newer one has started
+            self._model = thread.model
+            if thread.error:
+                self._state        = "error"
+                self._err_msg      = str(thread.error)
+                self._model_status = "Error during training"
+            elif thread.stopped:
+                self._state        = "idle"
+                self._model_status = "Stopped (unsaved)"
+            else:
+                self._state        = "done"
+                self._model_status = "Trained (unsaved)"
 
     # -------------------------------------------------------------------------
     # Drawing helpers
