@@ -117,7 +117,13 @@ class WarehouseEnv(gym.Env):
                     pkg[2] = 1  # Mark delivered
                     reward += 10  # Delivery reward
                     self.carrying = -1
-        
+
+        # A carried package moves with the agent, so a delivered one ends up
+        # at the delivery zone where it was dropped.
+        if self.carrying >= 0:
+            pkg = self.packages[self.carrying]
+            pkg[0], pkg[1] = int(self.agent_pos[0]), int(self.agent_pos[1])
+
         # Distance-based reward shaping: only during exploration (not carrying)
         if self.carrying == -1 and action in (0, 1, 2, 3):
             current_distance = self._get_nearest_package_distance()

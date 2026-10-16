@@ -208,6 +208,9 @@ train_agent(
 - Currently carrying package (1 dim, 0/1)
 - Package 1: X, Y, delivery status (3 dims)
 
+A package's X, Y is where the package currently is: its pickup cell while
+waiting, the agent's cell while carried, and the delivery zone once delivered.
+
 ### Reward Structure
 
 - **+10** for delivering a package to the delivery zone
