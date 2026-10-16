@@ -84,3 +84,32 @@ was wrong, what changed, and whether behaviour changed.
   `grid_size - 1` and flags by 1; internal state is explicitly integer and
   rewards are Python floats. *Behaviour change:* models saved before this
   change cannot be loaded, because SB3 compares the saved observation space.
+
+### Phase C — operational
+
+- **Added: pinned dependencies and a lock file.** `requirements.txt` pins the
+  direct dependencies exactly; `requirements.lock` pins every package for all
+  platforms (generated with `uv pip compile --universal`); a fresh install from
+  it passes the suite. Supported Python is 3.12–3.13 (was documented as 3.8+,
+  which current releases do not install on).
+- **Fixed: displays showed stale state.** Updates went through bounded queues
+  that dropped the *newest* update when full. A keep-latest slot now replaces
+  them: training never waits, each frame shows the current step, and the
+  number of undrawn steps is shown.
+- **Fixed: the dashboard copied 100 episode rewards into every step's
+  update.** Episode returns now travel once per episode on their own channel.
+  RESET STATS now stays cleared during training.
+- **Fixed: the visualizer ran pygame off the main thread**, which macOS does
+  not support. It now runs on the main thread with training beside it.
+  *API change:* `WarehouseVisualizer.start()` is replaced by `run()`.
+- **Added: run folders.** Each run writes `runs/<time>_g<grid>_p<pkgs>_s<seed>/`
+  with `config.json` (settings and library versions), the model, monitor CSV,
+  SB3 metrics as CSV and TensorBoard, and for CLI runs a log and the reward
+  plot. Nothing is overwritten between runs. *Behaviour change:* models are no
+  longer written to `./warehouse_dqn_model.zip`.
+- **Added: checkpointing and full resume.** Checkpoints (model and replay
+  buffer) every 10,000 steps; SAVE MODEL works while training or paused; the
+  replay buffer is saved with every model; LOAD MODEL sets the environment
+  sliders from the saved run and START resumes it with its optimizer state,
+  hyperparameters, step count and replay buffer (previously only weights were
+  copied into a fresh model).

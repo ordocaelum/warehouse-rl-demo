@@ -307,9 +307,10 @@ pytest
 
 The suite covers the environment contract (observation layout and bounds,
 each reward term, termination and truncation, Gymnasium's `check_env`),
-seeding and reproducibility, and the training callbacks' behaviour (final
-frame of each episode, episode stepping, reward history, STOP not
-overwriting a saved model). It trains only tiny models and runs in seconds.
+seeding and reproducibility, the training callbacks (final frame of each
+episode, episode stepping, reward history), the dashboard's state machine
+(driven headlessly), run folders, checkpointing, saving mid-run and resuming.
+It trains only tiny models and runs in well under a minute.
 
 ## Reproducibility
 
