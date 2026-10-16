@@ -80,3 +80,26 @@ def test_result_of_an_earlier_run_is_ignored(dashboard):
     dashboard._done_q.put(first)  # stale message
     dashboard._apply_finished()
     assert dashboard._state == "training"
+
+
+def test_reward_history_gets_each_episode_and_reset_sticks(dashboard):
+    _set_timesteps(dashboard, 500)
+    dashboard._cmd_start()
+    _wait_for(lambda: dashboard._episode_q.qsize() >= 3)
+    dashboard._drain_episodes()
+    before_reset = len(dashboard._ep_rewards)
+    assert before_reset >= 3
+
+    dashboard._cmd_reset()
+    assert dashboard._ep_rewards == []
+    _wait_for(lambda: dashboard._episode_q.qsize() >= 1)
+    dashboard._cmd_pause()  # training blocks at its next step
+    time.sleep(0.3)
+    dashboard._drain_episodes()
+    _, latest = dashboard._metrics_slot.take()
+
+    # Only episodes finished after the reset are shown; the earlier ones do
+    # not come back. (+1: on an episode's last step its return is queued
+    # after that step's metrics were sent.)
+    assert len(dashboard._ep_rewards) >= 1
+    assert len(dashboard._ep_rewards) <= latest["episode"] + 1 - before_reset

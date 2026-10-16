@@ -65,6 +65,7 @@ BOTTOM_H = 115   # bottom button bar
 CENTER_W = SCREEN_W - LEFT_W - RIGHT_W   # 720 px
 CENTER_H = SCREEN_H - BOTTOM_H           # 665 px
 FPS_CAP  = 60
+GRAPH_EPISODES = 100  # episodes shown in the reward history graph
 
 # ---------------------------------------------------------------------------
 # Colour palette
@@ -304,12 +305,15 @@ class _Callback(_BaseCallback):
         metrics_q: LatestSlot,
         stop_ev: threading.Event,
         pause_ev: threading.Event,
+        episode_q: Optional[queue.Queue] = None,
     ) -> None:
         super().__init__(verbose=0)
         self._q       = metrics_q
         self._stop    = stop_ev
         self._pause   = pause_ev
+        self._episode_q = episode_q  # receives each finished episode's return
         self.ep_rewards: List[float] = []
+        self._avg: Optional[float] = None  # mean of the last 50 episodes
         self._ep_r    = 0.0
         self._ep_n    = 0
         self._step_n  = 0
@@ -331,10 +335,6 @@ class _Callback(_BaseCallback):
         self._ep_r   += reward
         self._step_n += 1
 
-        avg: Optional[float] = (
-            float(np.mean(self.ep_rewards[-50:]))
-            if len(self.ep_rewards) >= 10 else None
-        )
         eps = float(getattr(self.model, "exploration_rate", 1.0))
 
         # Unwrap VecEnv / Monitor wrappers to reach the raw WarehouseEnv
@@ -359,14 +359,13 @@ class _Callback(_BaseCallback):
             "step":        self._step_n,
             "reward":      reward,
             "ep_reward":   self._ep_r,
-            "avg_reward":  avg,
+            "avg_reward":  self._avg,
             "epsilon":     eps,
             **env_state,
             "grid_size":   int(raw.grid_size),
             "delivery_zone": self.locals["infos"][0]["delivery_zone"],
             "total_steps": self.num_timesteps,
             "elapsed":     time.time() - self._t0,
-            "ep_rewards":  list(self.ep_rewards[-100:]),
         }
 
         # Never blocks: replaces any update the UI has not drawn yet.
@@ -374,6 +373,10 @@ class _Callback(_BaseCallback):
 
         if done:
             self.ep_rewards.append(self._ep_r)
+            if len(self.ep_rewards) >= 10:
+                self._avg = float(np.mean(self.ep_rewards[-50:]))
+            if self._episode_q is not None:
+                self._episode_q.put(self._ep_r)  # once per episode, never dropped
             self._ep_r   = 0.0
             self._ep_n  += 1
             self._step_n = 0
@@ -394,9 +397,11 @@ class _TrainingThread(threading.Thread):
         stop_ev: threading.Event,
         pause_ev: threading.Event,
         on_done,  # callable(thread), called from this thread when it finishes
+        episode_q: Optional[queue.Queue] = None,
     ) -> None:
         super().__init__(daemon=True)
         self.params   = params
+        self._episode_q = episode_q
         self._q       = metrics_q
         self._stop    = stop_ev
         self._pause   = pause_ev
@@ -437,7 +442,7 @@ class _TrainingThread(threading.Thread):
                 model.set_parameters(loaded.get_parameters())
 
             self.model = model
-            cb = _Callback(self._q, self._stop, self._pause)
+            cb = _Callback(self._q, self._stop, self._pause, self._episode_q)
             model.learn(total_timesteps=int(p["total_timesteps"]), callback=cb)
             self.stopped = self._stop.is_set()
             # A stopped run is partial: never let it overwrite the saved model.
@@ -513,8 +518,10 @@ class Dashboard:
         self._err_msg   = ""
 
         # Threading primitives
-        # Newest metrics from the training thread; a new slot per run.
+        # Newest metrics from the training thread, and every finished
+        # episode's return; new ones per run.
         self._metrics_slot = LatestSlot()
+        self._episode_q: queue.Queue = queue.Queue()
         # Finished training threads, posted by the thread itself and applied
         # by the UI thread, which is the only writer of the dashboard state.
         self._done_q: "queue.Queue[_TrainingThread]" = queue.Queue()
@@ -578,9 +585,7 @@ class Dashboard:
             has_update, m = self._metrics_slot.take()
             if has_update:
                 self._metrics = m
-                ep = m.get("ep_rewards")
-                if ep is not None:
-                    self._ep_rewards = ep
+            self._drain_episodes()
 
             # Apply the result of a training thread that has finished
             self._apply_finished()
@@ -674,9 +679,10 @@ class Dashboard:
         self._err_msg    = ""
         self._btns["PAUSE"].label = "PAUSE"
         self._metrics_slot = LatestSlot()
+        self._episode_q = queue.Queue()
         self._thread = _TrainingThread(
             params, self._metrics_slot, self._stop_ev, self._pause_ev,
-            on_done=self._on_done,
+            on_done=self._on_done, episode_q=self._episode_q,
         )
         self._state = "training"
         self._thread.start()
@@ -718,6 +724,15 @@ class Dashboard:
             self._model_status = f"Loaded: {path}.zip (applies on next START)"
         else:
             self._model_status = "File not found: warehouse_dqn_model.zip"
+
+    def _drain_episodes(self) -> None:
+        """Append newly finished episode returns to the graph's history."""
+        while True:
+            try:
+                self._ep_rewards.append(self._episode_q.get_nowait())
+            except queue.Empty:
+                break
+        del self._ep_rewards[:-GRAPH_EPISODES]
 
     def _cmd_reset(self) -> None:
         self._ep_rewards = []
