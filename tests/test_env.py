@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from gymnasium.utils.env_checker import check_env
 
-from helpers import DOWN, DROPOFF, LEFT, PICKUP, RIGHT, UP, deliver, pick_up
+from helpers import DOWN, DROPOFF, LEFT, PICKUP, RIGHT, UP, deliver, pick_up, walk_to
 from warehouse_env import WarehouseEnv
 
 STEP_COST = 0.05
@@ -151,3 +151,31 @@ def test_reset_restores_start_state():
     assert env.carrying == -1
     assert env.step_count == 0
     assert all(p[2] == 0 for p in env.packages)
+
+
+# -- bounds and dtypes --------------------------------------------------------
+
+def test_observation_bounds_are_exact():
+    env = WarehouseEnv(grid_size=6, num_packages=2)
+    np.testing.assert_array_equal(env.observation_space.low, np.zeros(9))
+    np.testing.assert_array_equal(env.observation_space.high, [5, 5, 1, 5, 5, 1, 5, 5, 1])
+
+
+def test_observation_reaches_its_upper_bound():
+    # Carrying a package into the far corner puts every coordinate at
+    # grid_size - 1 and the carrying flag at 1; delivering sets the last flag.
+    env = _env_with([[3, 3, 0]], agent=(3, 3), grid_size=6)
+    env.step(PICKUP)
+    obs, *_ = walk_to(env, 5, 5)[-1]
+    np.testing.assert_array_equal(obs[:5], env.observation_space.high[:5])
+    obs, *_ = env.step(DROPOFF)
+    assert obs[5] == env.observation_space.high[5]
+
+
+def test_internal_types():
+    env = WarehouseEnv(num_packages=2)
+    env.reset(seed=0)
+    _, reward, *_ = env.step(RIGHT)
+    assert env.agent_pos.dtype == np.int64
+    assert all(type(v) is int for p in env.packages for v in p)
+    assert type(reward) is float

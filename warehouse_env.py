@@ -44,15 +44,16 @@ class WarehouseEnv(gym.Env):
         
         # State space: [agent_x, agent_y, carrying, package1_x, package1_y, package1_delivered, ...]
         # For 1 package: agent_pos(2) + carrying(1) + packages(1*(2+1)) = 6 dims
-        state_dim = 2 + 1 + (num_packages * 3)
+        # Bounds are exact: coordinates lie in [0, grid_size - 1], flags in {0, 1}.
+        last = grid_size - 1
+        high = np.array([last, last, 1] + [last, last, 1] * num_packages, dtype=np.float32)
         self.observation_space = spaces.Box(
-            low=0, 
-            high=max(grid_size, 1),  # Handle package_delivered as 0/1
-            shape=(state_dim,),
-            dtype=np.float32
+            low=np.zeros_like(high), high=high, dtype=np.float32
         )
-        
-        self.agent_pos = np.array([0, 0])
+
+        # Internal state is integer grid coordinates; only the observation is
+        # float32.
+        self.agent_pos = np.array([0, 0], dtype=np.int64)
         self.carrying = -1  # -1 = nothing, else package index
         self.packages = []  # List of [x, y, delivered]
         self.spawn_zone = (0, 0)
@@ -138,7 +139,7 @@ class WarehouseEnv(gym.Env):
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         """Reset environment to initial state."""
         super().reset(seed=seed)
-        self.agent_pos = np.array([0, 0])
+        self.agent_pos = np.array([0, 0], dtype=np.int64)
         self.carrying = -1
         self._init_packages()
         self.step_count = 0
@@ -217,7 +218,7 @@ class WarehouseEnv(gym.Env):
         info["termination_reason"] = (
             "all_delivered" if terminated else "max_steps" if truncated else None
         )
-        return self._get_obs(), reward, terminated, truncated, info
+        return self._get_obs(), float(reward), terminated, truncated, info
     
     def render(self):
         """Simple text rendering."""
