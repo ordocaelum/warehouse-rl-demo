@@ -439,7 +439,10 @@ class _TrainingThread(threading.Thread):
             self.model = model
             cb = _Callback(self._q, self._stop, self._pause)
             model.learn(total_timesteps=int(p["total_timesteps"]), callback=cb)
-            model.save("warehouse_dqn_model")
+            # A stopped run is partial: never let it overwrite the saved model.
+            # (It stays available to SAVE MODEL explicitly.)
+            if not self._stop.is_set():
+                model.save("warehouse_dqn_model")
 
         except Exception as exc:  # noqa: BLE001
             self.error = exc
