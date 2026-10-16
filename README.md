@@ -20,6 +20,12 @@ warehouse-rl-demo/
 ├── train_agent.py         # Training script with DQN agent
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
+├── lab_render.py          # Renderer interface: how the lab draws an environment
+├── lab_envs.py            # Any Gymnasium id: per-env profiles; observation as render state
+├── lab_metrics.py         # Algorithm metrics, forwarded by name
+├── lab_params.py          # Declarative schema for the dashboard's settings
+├── warehouse_render.py    # Renderer for WarehouseEnv's render state
+├── warehouse_lab.py       # WarehouseEnv's profile: settings, renderer, run-folder name
 ├── requirements.txt       # Python dependencies (pinned)
 ├── requirements-dev.txt   # + pytest
 ├── requirements.lock      # every package pinned, all platforms
@@ -63,6 +69,9 @@ Launch the full-featured interactive UI:
 python ui_dashboard.py
 ```
 
+`--env` trains another registered Gymnasium environment instead of
+`Warehouse-v0` (see [Training Other Environments](#training-other-environments)).
+
 A 1300×780 window opens with three panels:
 
 #### Left Panel – Parameter Controls
@@ -72,13 +81,19 @@ A 1300×780 window opens with three panels:
 | Grid Size | 6 – 15 | 8 | Warehouse grid dimensions |
 | Packages | 1 – 5 | 1 | Number of packages to deliver |
 | Max Steps | 100 – 500 | 300 | Episode step limit |
-| Timesteps (k) | 10k – 500k | 100k | Total training timesteps |
+| Step Cost | 0.01 – 0.5 | 0.05 | Per-step reward penalty |
 | Learning Rate | 1e-4 – 1e-2 | 1e-3 | DQN learning rate (log scale) |
 | Init Epsilon | 0.5 – 1.0 | 1.0 | Starting exploration rate |
 | Final Epsilon | 0.01 – 0.3 | 0.1 | Ending exploration rate |
 | Buffer (k) | 1k – 50k | 10k | Replay buffer size |
-| Step Cost | 0.01 – 0.5 | 0.05 | Per-step reward penalty |
+| Timesteps (k) | 10k – 500k | 100k | Total training timesteps |
 | Seed | 0 – 999 | 0 | Random seed for the environment, agent and torch |
+
+The sliders are generated from a declarative schema (`lab_params.py`): each
+setting names the keyword argument it sets, whether it goes to the
+environment, the agent or the run, its type, range, default, unit scale and
+whether the slider is logarithmic. The environment's settings come first
+(`warehouse_lab.py`), then the agent's and the run's.
 
 #### Center Panel – Live Warehouse Grid
 
@@ -92,6 +107,8 @@ A 1300×780 window opens with three panels:
 
 - Training state, model status
 - Live episode number, step, reward, and 50-episode moving average
+- Algorithm metrics, whichever the agent logs, by name (for DQN: exploration
+  rate, learning rate, number of updates, loss)
 - Total timesteps, elapsed time, UI FPS
 - Training progress bar
 - Reward history graph (last 100 episodes) with 20-episode moving average
@@ -129,12 +146,13 @@ Options: `--timesteps`, `--seed`, `--grid-size`, `--packages`, `--max-steps`,
 ### Run Folders
 
 Every training run, from the command line or the dashboard, writes to its own
-folder, `runs/<YYYYmmdd-HHMMSS>_g<grid>_p<packages>_s<seed>/`, so runs never
+folder, `runs/<YYYYmmdd-HHMMSS>_g<grid>_p<packages>_s<seed>/` (for other
+environments, `runs/<YYYYmmdd-HHMMSS>_<env id>_s<seed>/`), so runs never
 overwrite each other:
 
 | File | Contents |
 |------|----------|
-| `config.json` | Environment and agent settings, seed, timesteps, Python and library versions |
+| `config.json` | Environment id and settings, agent settings, seed, timesteps, Python and library versions |
 | `model.zip`, `model_replay_buffer.pkl` | The trained model (SB3 format) and its replay buffer |
 | `checkpoints/` | Model and replay buffer every 10,000 steps (`--checkpoint-freq`) |
 | `0.monitor.csv` | Reward, length and wall time of every episode |
@@ -151,7 +169,8 @@ python train_agent.py --visualize
 
 A window opens showing:
 - The 8×8 warehouse grid with agent, packages, and delivery zone
-- Live metrics: episode, step, reward, 50-episode moving average, exploration rate
+- Live metrics: episode, step, reward, 50-episode moving average, and the
+  first metric the algorithm logs (for DQN, the exploration rate)
 - A reward history sparkline
 
 #### Visualizer Controls
@@ -218,6 +237,37 @@ train_agent(
 )
 ```
 
+### Training Other Environments
+
+The dashboard is not tied to the warehouse. Any registered Gymnasium
+environment can be trained with
+
+```bash
+python ui_dashboard.py --env CartPole-v1
+```
+
+and nothing in the repository is specific to CartPole:
+`tests/test_cartpole_acceptance.py` runs the dashboard's own loop headlessly
+on the stock environment, from START to a saved model.
+
+What an environment can add, all optional:
+
+- **`info["render_state"]`** from `reset()` and `step()`: plain data saying
+  what to draw. Without it the dashboard draws the observation, one bar per
+  component (`lab_envs.ObservationRenderState`,
+  `lab_render.ObservationRenderer`).
+- **A profile** (`lab_envs.EnvProfile`, registered with `register_profile`):
+  sliders for its constructor arguments (`lab_params.Param`), a renderer
+  (`lab_render.Renderer`, whose `draw(surface, rect, state)` draws a render
+  state into a rectangle) and a run-folder name. `warehouse_lab.py` is
+  Warehouse-v0's profile.
+
+The right panel shows whichever metrics the algorithm logs, by name.
+
+Limits: the agent is always DQN with an MLP policy, so the action space must
+be `Discrete` and the observation flattenable to a vector. The command-line
+trainer and its live visualizer (`train_agent.py`) remain warehouse-specific.
+
 ## Environment Details
 
 ### Creating the Environment
@@ -271,6 +321,12 @@ waiting, the agent's cell while carried, and the delivery zone once delivered.
 | `invalid_action` | (`step` only) the action changed nothing: walking into a wall, picking up with nothing to pick up, dropping off empty-handed or away from the zone |
 | `is_success` | (`step` only) every package has been delivered. SB3 reports it as `rollout/success_rate` |
 | `termination_reason` | (`step` only) `"all_delivered"`, `"max_steps"` or `None`. A delivery on the last allowed step is `"all_delivered"` |
+| `render_state` | Plain-data snapshot of what to draw (`get_render_state()`): `grid_size`, `agent_pos`, `carrying`, `packages` (`[x, y, delivered]` each), `delivery_zone` |
+
+The dashboard and the visualizer draw only `render_state`. Their training
+callbacks forward it from `info` and never read the environment object, so
+they work unchanged with a `SubprocVecEnv`. On the last step of an episode it
+still shows that step, although the vectorised env has already reset.
 
 ### Reward Structure
 
@@ -309,7 +365,10 @@ The suite covers the environment contract (observation layout and bounds,
 each reward term, termination and truncation, Gymnasium's `check_env`),
 seeding and reproducibility, the training callbacks (final frame of each
 episode, episode stepping, reward history), the dashboard's state machine
-(driven headlessly), run folders, checkpointing, saving mid-run and resuming.
+(driven headlessly), run folders, checkpointing, saving mid-run and resuming,
+the render-state contract (including callbacks against a `SubprocVecEnv`),
+renderers, the parameter schema, algorithm metrics (DQN and PPO), and the
+dashboard training stock CartPole-v1 end to end.
 It trains only tiny models and runs in well under a minute.
 
 ## Reproducibility

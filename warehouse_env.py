@@ -110,12 +110,30 @@ class WarehouseEnv(gym.Env):
             [y > 0, y < last, x > 0, x < last, can_pickup, can_dropoff], dtype=bool
         )
 
+    def get_render_state(self) -> Dict[str, Any]:
+        """Everything needed to draw the current frame, as plain Python values.
+
+        A fresh snapshot that shares nothing with the env.  reset() and step()
+        report it as ``info["render_state"]``, so displays draw what the env
+        pushed instead of reading its attributes.  On the last step of an
+        episode it still describes that step after a vectorised env has
+        auto-reset.
+        """
+        return {
+            "grid_size": self.grid_size,
+            "agent_pos": [int(self.agent_pos[0]), int(self.agent_pos[1])],
+            "carrying": int(self.carrying),
+            "packages": [[int(x), int(y), int(d)] for x, y, d in self.packages],
+            "delivery_zone": [int(c) for c in self.delivery_zone],
+        }
+
     def _get_info(self) -> Dict[str, Any]:
         return {
             "delivered": sum(1 for pkg in self.packages if pkg[2]),
             "num_packages": self.num_packages,
             "delivery_zone": [int(c) for c in self.delivery_zone],
             "action_mask": self.action_masks(),
+            "render_state": self.get_render_state(),
         }
 
     def _get_obs(self) -> np.ndarray:
@@ -124,30 +142,6 @@ class WarehouseEnv(gym.Env):
         for pkg in self.packages:
             obs.extend([pkg[0], pkg[1], float(pkg[2])])
         return np.array(obs, dtype=np.float32)
-
-    @staticmethod
-    def state_from_observation(obs) -> Dict[str, Any]:
-        """Rebuild the drawable state (agent, carrying, packages) from an observation.
-
-        Used for the last step of an episode: vectorised envs reset on done,
-        so the env object already holds the next episode, and only the
-        terminal observation still describes the final frame.  Only a
-        carrying *flag* is observed, so ``carrying`` is reported as the
-        lowest-indexed undelivered package on the agent's cell.
-        """
-        obs = np.asarray(obs)
-        agent_pos = [int(obs[0]), int(obs[1])]
-        packages = [
-            [int(obs[i]), int(obs[i + 1]), int(obs[i + 2])]
-            for i in range(3, len(obs), 3)
-        ]
-        carrying = -1
-        if obs[2] >= 0.5:
-            carrying = next(
-                (k for k, p in enumerate(packages) if p[:2] == agent_pos and not p[2]),
-                -1,
-            )
-        return {"agent_pos": agent_pos, "carrying": carrying, "packages": packages}
 
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         """Reset environment to initial state."""
@@ -171,6 +165,7 @@ class WarehouseEnv(gym.Env):
           num_packages       packages in the episode
           delivery_zone      [x, y] of the delivery zone
           action_mask        action_masks() for the *new* state
+          render_state       get_render_state() for the *new* state
           invalid_action     True if the action changed nothing (walking into
                              a wall, pickup with nothing to pick up, dropoff
                              while empty-handed or away from the zone)
@@ -275,5 +270,6 @@ class WarehouseEnv(gym.Env):
 # Registered so that gym.make("Warehouse-v0", grid_size=..., render_mode=...)
 # works once this module is imported.  No max_episode_steps: the env truncates
 # itself at max_steps.
-if "Warehouse-v0" not in gym.registry:
-    gym.register(id="Warehouse-v0", entry_point="warehouse_env:WarehouseEnv")
+ENV_ID = "Warehouse-v0"
+if ENV_ID not in gym.registry:
+    gym.register(id=ENV_ID, entry_point="warehouse_env:WarehouseEnv")

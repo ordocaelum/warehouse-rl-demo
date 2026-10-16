@@ -3,7 +3,6 @@
 import queue
 import threading
 
-import numpy as np
 from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 
@@ -16,21 +15,7 @@ EASY = dict(grid_size=3, num_packages=1, max_steps=60)
 
 
 def _all_delivered(update):
-    return all(p[2] for p in update["packages"])
-
-
-def test_state_from_observation_round_trips():
-    env = WarehouseEnv(grid_size=6, num_packages=2)
-    env.reset(seed=5)
-    rng = np.random.default_rng(5)
-    for _ in range(300):
-        obs, _, terminated, truncated, _ = env.step(int(rng.integers(6)))
-        state = WarehouseEnv.state_from_observation(obs)
-        assert state["agent_pos"] == env.agent_pos.tolist()
-        assert state["packages"] == env.packages
-        assert (state["carrying"] >= 0) == (env.carrying >= 0)
-        if terminated or truncated:
-            env.reset()
+    return all(p[2] for p in update["render_state"]["packages"])
 
 
 def test_cli_callback_shows_delivery():

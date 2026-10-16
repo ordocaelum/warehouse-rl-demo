@@ -7,8 +7,6 @@ import pytest
 
 pygame = pytest.importorskip("pygame")
 
-TIMESTEPS_SLIDER = 3  # value is in thousands
-SEED_SLIDER = 9
 
 
 @pytest.fixture
@@ -23,7 +21,7 @@ def dashboard(tmp_path, monkeypatch):
 
 
 def _set_timesteps(d, thousands):
-    d._sliders[TIMESTEPS_SLIDER]._value = thousands  # bypasses the slider minimum
+    d._sliders["total_timesteps"]._value = thousands  # bypasses the slider minimum
 
 
 def _wait_for(predicate, timeout=60):
@@ -113,7 +111,8 @@ def test_load_matches_sliders_to_the_saved_run_and_resumes(dashboard):
 
     dashboard._cmd_load()
     assert dashboard._model_status.startswith("Selected"), dashboard._model_status
-    assert [s.value for s in dashboard._sliders[:3]] == [6, 2, 100]
+    assert [dashboard._sliders[k].value for k in ("grid_size", "num_packages", "max_steps")] \
+        == [6, 2, 100]
     assert dashboard._model_status.startswith("Selected")
 
     _set_timesteps(dashboard, 1)
@@ -129,9 +128,9 @@ def test_load_refuses_a_run_the_sliders_cannot_represent(dashboard):
 
     _, _, env = ta.train_agent(total_timesteps=100, seed=0, grid_size=4, checkpoint_freq=0)
     env.close()
-    before = [s.value for s in dashboard._sliders]
+    before = [s.value for s in dashboard._sliders.values()]
 
     dashboard._cmd_load()
     assert dashboard._model_status == "Can't load: Grid Size 4 out of range"
     assert dashboard._load_path is None
-    assert [s.value for s in dashboard._sliders] == before
+    assert [s.value for s in dashboard._sliders.values()] == before

@@ -1,5 +1,4 @@
 import argparse
-import functools
 import importlib.metadata
 import json
 import logging
@@ -13,7 +12,10 @@ from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
 from stable_baselines3.common.logger import configure as configure_sb3_logger
+from lab_envs import ObservationRenderState
+from lab_metrics import collect_algorithm_metrics
 from warehouse_env import WarehouseEnv
+from warehouse_lab import WAREHOUSE_ID, WAREHOUSE_PROFILE
 
 log = logging.getLogger("warehouse")
 
@@ -34,6 +36,7 @@ class RewardCallback(BaseCallback):
         self._episode_num = 0
         self._step_in_ep = 0
         self._stepping_episode = False  # S pressed: run to the episode's end
+        self._algo_metrics = {}  # latest value of each metric the algorithm logged
 
     def _on_step(self) -> bool:
         reward = self.locals.get("rewards", [0])[0]
@@ -43,32 +46,10 @@ class RewardCallback(BaseCallback):
 
         # Push live update to visualizer (non-blocking)
         if self._visualizer is not None:
-            env = self.training_env.envs[0]
-            # Unwrap Monitor/VecEnv layers to reach the raw WarehouseEnv
-            raw_env = env
-            while hasattr(raw_env, "env"):
-                raw_env = raw_env.env
-
-            # On the last step of an episode the VecEnv has already reset the
-            # env, so draw the final frame from the terminal observation.
-            if done:
-                terminal_obs = self.locals["infos"][0]["terminal_observation"]
-                env_state = WarehouseEnv.state_from_observation(terminal_obs)
-            else:
-                env_state = {
-                    "agent_pos": raw_env.agent_pos.tolist(),
-                    "packages":  [list(p) for p in raw_env.packages],
-                    "carrying":  int(raw_env.carrying),
-                }
-
             avg_reward = None
             window = self.episode_rewards[-50:]
             if len(self.episode_rewards) >= 50:
                 avg_reward = float(np.mean(window))
-
-            epsilon = 1.0
-            if hasattr(self.model, "exploration_rate"):
-                epsilon = float(self.model.exploration_rate)
 
             self._visualizer.put_update({
                 "episode":   self._episode_num,
@@ -76,10 +57,13 @@ class RewardCallback(BaseCallback):
                 "reward":    float(reward),
                 "ep_reward": float(self.current_reward),
                 "avg_reward": avg_reward,
-                "epsilon":   epsilon,
-                **env_state,
-                "grid_size": int(raw_env.grid_size),
-                "delivery_zone": self.locals["infos"][0]["delivery_zone"],
+                # Whatever the algorithm logs, by name (e.g. DQN's
+                # rollout/exploration_rate); nothing is assumed to exist.
+                "algo_metrics": dict(collect_algorithm_metrics(self.logger, self._algo_metrics)),
+                # Forwarded as the env reported it; the env itself is never
+                # read. On an episode's last step this is still that step,
+                # although the VecEnv has already reset the env.
+                "render_state": self.locals["infos"][0].get("render_state"),
             })
 
             # Honour pause/resume from visualizer; bail out if it stops running.
@@ -114,10 +98,9 @@ TARGET_UPDATE_INTERVAL = 500
 EXPLORATION_FRACTION = 0.2
 
 
-def new_run_dir(runs_dir=RUNS_DIR, grid_size: int = 8, num_packages: int = 1,
-                seed: int | None = None) -> Path:
-    """Create and return an empty folder for one training run's outputs."""
-    base = Path(runs_dir) / f"{time.strftime('%Y%m%d-%H%M%S')}_g{grid_size}_p{num_packages}_s{seed}"
+def new_run_dir(runs_dir=RUNS_DIR, name: str = "g8_p1", seed: int | None = None) -> Path:
+    """Create and return an empty folder, <time>_<name>_s<seed>, for one run's outputs."""
+    base = Path(runs_dir) / f"{time.strftime('%Y%m%d-%H%M%S')}_{name}_s{seed}"
     path, n = base, 1
     while path.exists():
         path = base.with_name(f"{base.name}-{n}")
@@ -201,23 +184,24 @@ def find_latest_model(runs_dir=RUNS_DIR) -> Path | None:
     return models[-1] if models else None
 
 
-def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
-             step_cost: float = 0.05, seed: int | None = None, monitor_dir=None):
+def make_env(env_id: str = WAREHOUSE_ID, seed: int | None = None, monitor_dir=None,
+             **env_kwargs):
     """The single-env DummyVecEnv (with Monitor) that both entry points train on.
 
+    ``env_id`` is any registered Gymnasium id, built with
+    ``gym.make(env_id, **env_kwargs)``.
+
     With ``monitor_dir``, Monitor writes per-episode reward/length/time to
-    ``monitor_dir/0.monitor.csv``.
+    ``monitor_dir/0.monitor.csv``. Envs that report no render state of their
+    own report their observation instead (ObservationRenderState).
     """
-    make_fn = functools.partial(
-        WarehouseEnv,
-        grid_size=grid_size,
-        num_packages=num_packages,
-        max_steps=max_steps,
-        step_cost=step_cost,
-    )
     return make_vec_env(
-        make_fn, n_envs=1, seed=seed,
+        env_id, n_envs=1, seed=seed,
+        # SB3 would ask a string id for render_mode="rgb_array"; nothing
+        # here renders frames (and WarehouseEnv has no such mode).
+        env_kwargs={"render_mode": None, **env_kwargs},
         monitor_dir=str(monitor_dir) if monitor_dir is not None else None,
+        wrapper_class=ObservationRenderState,
     )
 
 
@@ -275,11 +259,11 @@ def train_agent(
                         exploration_final=exploration_final,
                         exploration_fraction=exploration_fraction)
     if run_dir is None:
-        run_dir = new_run_dir(grid_size=grid_size, num_packages=num_packages, seed=seed)
+        run_dir = new_run_dir(name=WAREHOUSE_PROFILE.run_tag(env_config), seed=seed)
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     write_run_config(
-        run_dir, env=env_config,
+        run_dir, env_id=WAREHOUSE_ID, env=env_config,
         agent={**agent_config, "learning_starts": LEARNING_STARTS,
                "target_update_interval": TARGET_UPDATE_INTERVAL},
         seed=seed, total_timesteps=total_timesteps,
@@ -398,7 +382,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    run_dir = new_run_dir(args.runs_dir, args.grid_size, args.packages, args.seed)
+    run_name = WAREHOUSE_PROFILE.run_tag(dict(grid_size=args.grid_size, num_packages=args.packages))
+    run_dir = new_run_dir(args.runs_dir, run_name, args.seed)
     logging.basicConfig(
         level=logging.INFO, format="%(message)s",
         handlers=[logging.StreamHandler(), logging.FileHandler(run_dir / "train.log")],

@@ -113,3 +113,54 @@ was wrong, what changed, and whether behaviour changed.
   sliders from the saved run and START resumes it with its optimizer state,
   hyperparameters, step count and replay buffer (previously only weights were
   copied into a fresh model).
+
+### Phase D — the training lab is no longer warehouse-specific
+
+A refactor, kept apart from the fixes above. Unless noted, behaviour is
+unchanged: a seeded Warehouse-v0 run trains to bit-identical weights and
+episode rewards before and after.
+
+- **Changed: the environment pushes its render state.** `WarehouseEnv`
+  reports `info["render_state"]` (also `get_render_state()`), a plain-data
+  snapshot of what to draw. Both training callbacks forward it unchanged;
+  they no longer walk `training_env.envs[0]` and its wrappers to read
+  `agent_pos`, `packages`, `carrying` and `grid_size`, so they also work
+  with a `SubprocVecEnv`. A done step's info still describes that step, so
+  the final frame no longer has to be rebuilt from `terminal_observation`
+  (`WarehouseEnv.state_from_observation` is removed). *API change:* display
+  updates carry a nested `render_state` instead of those top-level keys.
+- **Changed: one renderer per environment.** `lab_render.Renderer`
+  (`draw(surface, rect, state)`) is the interface;
+  `warehouse_render.WarehouseRenderer` replaces the grid-drawing code the
+  dashboard and the visualizer each had. *Visible:* both use one palette
+  and label the delivery zone "D"; the dashboard draws no grid before the
+  first update.
+- **Changed: declarative parameter schema.** `lab_params.Param` (name,
+  target `env`/`agent`/`run`, type, min, max, default, scale, log flag)
+  replaces the index-mapped `_SLIDER_SPECS`, `_get_params` and
+  `_ENV_SLIDERS`; values are passed on by name. *Visible:* the
+  environment's sliders come first, so Step Cost moves up and Timesteps
+  down.
+- **Changed: algorithm metrics by name.** The callbacks forward whatever
+  the algorithm logs (`algo_metrics`, e.g. DQN's
+  `rollout/exploration_rate`, PPO's `train/entropy_loss`) instead of an
+  `epsilon` that read 1.0 for any algorithm without one. The dashboard's
+  Epsilon row becomes an ALGORITHM section; the visualizer shows the first
+  metric logged.
+- **Added: any Gymnasium environment.** `python ui_dashboard.py --env <id>`.
+  Environments that report no render state are drawn from their
+  observation, one bar per component. Optional per-environment profiles
+  (`lab_envs.EnvProfile`) supply sliders, a renderer and a run-folder name;
+  `warehouse_lab.py` is Warehouse-v0's. `config.json` records `env_id`, and
+  LOAD MODEL refuses a run of another environment. Warehouse-v0 is now
+  built with `gym.make`.
+- **Acceptance test: the lab runs stock CartPole-v1** with no
+  CartPole-specific code (`tests/test_cartpole_acceptance.py`, headless).
+  Attempted after the first four items above, it failed; the remaining
+  warehouse assumptions were: `make_env` built `WarehouseEnv` directly from
+  its four arguments, the run folder was named from `grid_size` and
+  `num_packages`, nothing could draw an environment without a render
+  state, and `config.json` did not say which environment a run used. The
+  last item above removes them. Still assumed: the agent is DQN with an
+  MLP policy (`Discrete` actions, flattenable observations), and
+  `train_agent.py` with its visualizer remains warehouse-specific.

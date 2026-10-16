@@ -12,6 +12,7 @@ import threading
 import time
 from typing import List, Optional
 
+from lab_metrics import display_metrics
 from latest_slot import LatestSlot
 
 try:
@@ -29,15 +30,12 @@ FPS_CAP = 60
 GRID_SIZE = 8
 # Completed-episode returns kept for the sparkline.
 REWARD_HISTORY_LEN = 200
+# Algorithm metrics shown in the panel (the first ones the algorithm logged;
+# one line keeps the layout of the Epsilon line it replaced).
+ALGO_LINES = 1
 
 # Colours (R, G, B)
 COL_BG           = (30,  30,  40)
-COL_GRID_LINE    = (60,  60,  80)
-COL_DELIVERY     = (80, 160,  80)
-COL_AGENT_EMPTY  = (220, 220, 220)
-COL_AGENT_CARRY  = (255, 200,  50)
-COL_PKG_PENDING  = ( 80, 130, 220)
-COL_PKG_DONE     = ( 80, 200, 100)
 COL_TEXT         = (200, 210, 230)
 COL_TEXT_POS     = ( 80, 220,  80)
 COL_TEXT_NEG     = (220,  80,  80)
@@ -65,12 +63,12 @@ class WarehouseVisualizer:
             "reward":       step_reward,
             "ep_reward":    cumulative_episode_reward,
             "avg_reward":   moving_average_reward,       # optional
-            "epsilon":      exploration_rate,            # optional
-            "agent_pos":    [x, y],
-            "packages":     [[x, y, delivered], ...],
-            "carrying":     -1 or package_index,
-            "grid_size":    8,
-            "delivery_zone": [x, y],
+            "algo_metrics": {"rollout/exploration_rate": 0.4, ...},  # optional
+            # as the env reported it in info["render_state"]:
+            "render_state": {"grid_size": 8, "agent_pos": [x, y],
+                             "packages": [[x, y, delivered], ...],
+                             "carrying": -1 or package_index,
+                             "delivery_zone": [x, y]},
         })
 
         # once per finished episode:
@@ -79,13 +77,19 @@ class WarehouseVisualizer:
         viz.stop()                   # from any thread: close the window
     """
 
-    def __init__(self, grid_size: int = GRID_SIZE):
+    def __init__(self, grid_size: int = GRID_SIZE, renderer=None):
+        """``grid_size`` sets the initial view size (in cells of CELL_SIZE px);
+        ``renderer`` draws the env's render state (see lab_render.py)."""
         if not PYGAME_AVAILABLE:
             raise RuntimeError(
                 "pygame is required for the live visualizer. "
                 "Install it with:  pip install pygame"
             )
 
+        if renderer is None:
+            from warehouse_render import WarehouseRenderer
+            renderer = WarehouseRenderer()
+        self._renderer = renderer
         self.grid_size = grid_size
         # Newest per-step update; training never waits on the display.
         self._updates = LatestSlot()
@@ -99,12 +103,8 @@ class WarehouseVisualizer:
             "reward":    0.0,
             "ep_reward": 0.0,
             "avg_reward": None,
-            "epsilon":   1.0,
-            "agent_pos": [0, 0],
-            "packages":  [],
-            "carrying":  -1,
-            "grid_size": grid_size,
-            "delivery_zone": None,  # None until the first update: bottom-right
+            "algo_metrics": {},  # whatever the algorithm logs, by name
+            "render_state": None,  # None until the first update
         }
 
         # Visualizer-local mutable properties
@@ -242,7 +242,8 @@ class WarehouseVisualizer:
                 w, h = screen.get_size()
 
                 self._draw_background(screen, w, h)
-                self._draw_grid(screen, cell, grid_px)
+                view = pygame.Rect(self._pan_x, self._pan_y, grid_px, grid_px)
+                self._renderer.draw(screen, view, self._state.get("render_state"))
                 self._draw_panel(screen, font_large, font_medium, font_small,
                                  grid_px, w, h)
                 if self._paused:
@@ -282,56 +283,6 @@ class WarehouseVisualizer:
             b = int(COL_BG[2] * (1 - t) + 70 * t)
             base = (r, g, b)
         screen.fill(base)
-
-    def _draw_grid(self, screen: "pygame.Surface", cell: int, grid_px: int) -> None:
-        """Render the grid, delivery zone, packages, and agent."""
-        state = self._state
-        packages  = state.get("packages",  [])
-        agent_pos = state.get("agent_pos", [0, 0])
-        carrying  = state.get("carrying",  -1)
-        gs        = state.get("grid_size", self.grid_size)
-
-        ox = self._pan_x  # origin offsets
-        oy = self._pan_y
-
-        # --- delivery zone --------------------------------------------------
-        dz_x, dz_y = state.get("delivery_zone") or (gs - 1, gs - 1)
-        pygame.draw.rect(
-            screen, COL_DELIVERY,
-            (ox + dz_x * cell, oy + dz_y * cell, cell, cell)
-        )
-
-        # --- grid lines -----------------------------------------------------
-        for col in range(gs + 1):
-            x = ox + col * cell
-            pygame.draw.line(screen, COL_GRID_LINE, (x, oy), (x, oy + gs * cell))
-        for row in range(gs + 1):
-            y = oy + row * cell
-            pygame.draw.line(screen, COL_GRID_LINE, (ox, y), (ox + gs * cell, y))
-
-        # --- packages -------------------------------------------------------
-        for pkg in packages:
-            px, py, delivered = int(pkg[0]), int(pkg[1]), bool(pkg[2])
-            colour = COL_PKG_DONE if delivered else COL_PKG_PENDING
-            margin = max(4, cell // 6)
-            pygame.draw.rect(
-                screen, colour,
-                (ox + px * cell + margin,
-                 oy + py * cell + margin,
-                 cell - 2 * margin,
-                 cell - 2 * margin),
-                border_radius=max(2, cell // 8)
-            )
-
-        # --- agent ----------------------------------------------------------
-        ax, ay = int(agent_pos[0]), int(agent_pos[1])
-        colour = COL_AGENT_CARRY if carrying >= 0 else COL_AGENT_EMPTY
-        radius = max(4, cell // 3)
-        cx_ = ox + ax * cell + cell // 2
-        cy_ = oy + ay * cell + cell // 2
-        pygame.draw.circle(screen, colour, (cx_, cy_), radius)
-        # thin border
-        pygame.draw.circle(screen, COL_BORDER, (cx_, cy_), radius, 2)
 
     def _draw_panel(
         self,
@@ -395,10 +346,10 @@ class WarehouseVisualizer:
             screen.blit(surf, (x, y))
             y += surf.get_height() + 4
 
-        eps = state.get("epsilon", 1.0)
-        surf = font_medium.render(f"Epsilon:  {eps:>8.4f}", True, COL_TEXT)
-        screen.blit(surf, (x, y))
-        y += surf.get_height() + 4
+        for name, val in display_metrics(state.get("algo_metrics") or {}, ALGO_LINES):
+            surf = font_small.render(f"{name[:18]:<18} {val:>9}", True, COL_TEXT)
+            screen.blit(surf, (x, y))
+            y += surf.get_height() + 2
 
         # steps whose state was replaced before a frame could draw it
         surf = font_small.render(
@@ -407,23 +358,15 @@ class WarehouseVisualizer:
         screen.blit(surf, (x, y))
         y += surf.get_height() + 4
 
-        # carrying status
-        y += 8
-        label("== AGENT ==", font=font_medium)
-        carrying = state.get("carrying", -1)
-        c_text   = "Carrying: YES" if carrying >= 0 else "Carrying: no"
-        c_colour = COL_AGENT_CARRY if carrying >= 0 else COL_TEXT
-        surf = font_medium.render(c_text, True, c_colour)
-        screen.blit(surf, (x, y))
-        y += surf.get_height() + 4
-
-        pkgs = state.get("packages", [])
-        delivered = sum(1 for p in pkgs if p[2])
-        surf = font_medium.render(
-            f"Packages: {delivered}/{len(pkgs)}", True, COL_TEXT
-        )
-        screen.blit(surf, (x, y))
-        y += surf.get_height() + 4
+        # what the renderer says about the current state
+        lines = self._renderer.status_lines(state.get("render_state"))
+        if lines:
+            y += 8
+            label("== STATE ==", font=font_medium)
+        for text, colour in lines:
+            surf = font_medium.render(text, True, colour or COL_TEXT)
+            screen.blit(surf, (x, y))
+            y += surf.get_height() + 4
 
         # mini reward history sparkline
         history = self.reward_history()

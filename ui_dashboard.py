@@ -18,7 +18,7 @@ import queue
 import threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -50,14 +50,12 @@ except ImportError:
         def __init__(self, verbose: int = 0) -> None:
             pass
 
+from lab_metrics import collect_algorithm_metrics, display_metrics
+from lab_params import AGENT_PARAMS, RUN_PARAMS, Param, by_target
+from lab_render import Renderer
 from latest_slot import LatestSlot
-
-try:
-    from warehouse_env import WarehouseEnv
-    _ENV_AVAILABLE = True
-except ImportError:
-    WarehouseEnv = None  # type: ignore[assignment,misc]
-    _ENV_AVAILABLE = False
+from lab_envs import get_profile
+from warehouse_lab import WAREHOUSE_ID  # also registers Warehouse-v0 and its profile
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +70,7 @@ CENTER_W = SCREEN_W - LEFT_W - RIGHT_W   # 720 px
 CENTER_H = SCREEN_H - BOTTOM_H           # 665 px
 FPS_CAP  = 60
 GRAPH_EPISODES = 100  # episodes shown in the reward history graph
+ALGO_ROWS = 4         # algorithm metrics shown in the right panel
 
 # ---------------------------------------------------------------------------
 # Colour palette
@@ -95,13 +94,6 @@ _PAL: Dict[str, Tuple[int, int, int]] = {
     "btn_start":    ( 40, 125,  68),
     "btn_stop":     (160,  42,  42),
     "btn_save":     ( 40, 115, 152),
-    "grid_line":    ( 50,  57,  84),
-    "delivery":     ( 50, 135,  58),
-    "delivery_lbl": (120, 215, 120),
-    "agent":        (218, 218, 225),
-    "agent_carry":  (255, 200,  48),
-    "pkg_pend":     ( 62, 108, 208),
-    "pkg_done":     ( 62, 182,  80),
     "graph_raw":    ( 90, 150, 232),
     "graph_avg":    (235, 162,  50),
     "graph_bg":     ( 18,  22,  38),
@@ -332,6 +324,7 @@ class _Callback(_BaseCallback):
         self._start_steps = 0  # num_timesteps when this learn() call began
         self.ep_rewards: List[float] = []
         self._avg: Optional[float] = None  # mean of the last 50 episodes
+        self._algo_metrics: Dict[str, float] = {}  # latest of each logged metric
         self._ep_r    = 0.0
         self._ep_n    = 0
         self._step_n  = 0
@@ -365,35 +358,19 @@ class _Callback(_BaseCallback):
         self._ep_r   += reward
         self._step_n += 1
 
-        eps = float(getattr(self.model, "exploration_rate", 1.0))
-
-        # Unwrap VecEnv / Monitor wrappers to reach the raw WarehouseEnv
-        raw = self.training_env.envs[0]
-        while hasattr(raw, "env"):
-            raw = raw.env
-
-        # On the last step of an episode the VecEnv has already reset the
-        # env, so draw the final frame from the terminal observation.
-        if done:
-            terminal_obs = self.locals["infos"][0]["terminal_observation"]
-            env_state = WarehouseEnv.state_from_observation(terminal_obs)
-        else:
-            env_state = {
-                "agent_pos": raw.agent_pos.tolist(),
-                "packages":  [list(p) for p in raw.packages],
-                "carrying":  int(raw.carrying),
-            }
-
         metrics: Dict = {
             "episode":     self._ep_n,
             "step":        self._step_n,
             "reward":      reward,
             "ep_reward":   self._ep_r,
             "avg_reward":  self._avg,
-            "epsilon":     eps,
-            **env_state,
-            "grid_size":   int(raw.grid_size),
-            "delivery_zone": self.locals["infos"][0]["delivery_zone"],
+            # Whatever the algorithm logs, by name (e.g. DQN's
+            # rollout/exploration_rate); nothing is assumed to exist.
+            "algo_metrics": dict(collect_algorithm_metrics(self.logger, self._algo_metrics)),
+            # Forwarded as the env reported it; the env itself is never read.
+            # On an episode's last step this is still that step, although
+            # the VecEnv has already reset the env.
+            "render_state": self.locals["infos"][0].get("render_state"),
             "total_steps": self.num_timesteps,
             "run_steps":   self.num_timesteps - self._start_steps,
             "elapsed":     time.time() - self._t0,
@@ -423,7 +400,7 @@ class _TrainingThread(threading.Thread):
 
     def __init__(
         self,
-        params: dict,
+        params: dict,  # {"env_id", "env", "agent", "run" (kwargs by name), "load_path", "run_dir"}
         metrics_q: LatestSlot,
         stop_ev: threading.Event,
         pause_ev: threading.Event,
@@ -451,29 +428,19 @@ class _TrainingThread(threading.Thread):
         try:
             p = self.params
             self.run_dir.mkdir(parents=True, exist_ok=True)
-            env_config = dict(
-                grid_size    = int(p["grid_size"]),
-                num_packages = int(p["num_packages"]),
-                max_steps    = int(p["max_steps"]),
-                step_cost    = float(p["step_cost"]),
-            )
-            agent_config = dict(
-                learning_rate       = float(p["learning_rate"]),
-                buffer_size         = int(p["buffer_size"]),
-                exploration_initial = float(p["exploration_initial"]),
-                exploration_final   = float(p["exploration_final"]),
-            )
+            env_config, agent_config = p["env"], p["agent"]
+            seed, total_timesteps = p["run"]["seed"], p["run"]["total_timesteps"]
             write_run_config(
-                self.run_dir, env=env_config,
+                self.run_dir, env_id=p["env_id"], env=env_config,
                 agent={**agent_config, "exploration_fraction": EXPLORATION_FRACTION,
                        "learning_starts": LEARNING_STARTS,
                        "target_update_interval": TARGET_UPDATE_INTERVAL},
-                seed=int(p["seed"]), total_timesteps=int(p["total_timesteps"]),
+                seed=seed, total_timesteps=total_timesteps,
                 loaded_from=p.get("load_path"),
             )
             # Same construction as train_agent.py, so identical settings
             # train identically from either entry point.
-            env = make_env(**env_config, seed=int(p["seed"]), monitor_dir=self.run_dir)
+            env = make_env(p["env_id"], seed=seed, monitor_dir=self.run_dir, **env_config)
             self._env = env
 
             load_path = p.get("load_path")
@@ -481,16 +448,16 @@ class _TrainingThread(threading.Thread):
                 # Resume the saved model: its weights, optimizer state,
                 # hyperparameters, step count and replay buffer. The agent
                 # sliders do not apply to a resumed run.
-                model = load_run_model(load_path, env, seed=int(p["seed"]))
+                model = load_run_model(load_path, env, seed=seed)
             else:
-                model = make_dqn(env, **agent_config, seed=int(p["seed"]), verbose=0)
+                model = make_dqn(env, **agent_config, seed=seed, verbose=0)
             attach_run_logger(model, self.run_dir)
 
             self.model = model
             cb = _Callback(self._q, self._stop, self._pause, self._episode_q,
                            save_req=self._save_req, save_fn=self._save)
             model.learn(
-                total_timesteps=int(p["total_timesteps"]),
+                total_timesteps=total_timesteps,
                 callback=CallbackList([cb, checkpoint_callback(self.run_dir)]),
                 reset_num_timesteps=not load_path,
             )
@@ -523,37 +490,33 @@ class Dashboard:
     and manages the background training thread.
     """
 
-    # (label, min, max, default, is_int, log_scale, fmt)
-    _SLIDER_SPECS: List[Tuple] = [
-        ("Grid Size",       6,    15,    8,    True,  False, None),
-        ("Packages",        1,     5,    1,    True,  False, None),
-        ("Max Steps",     100,   500,  300,    True,  False, None),
-        ("Timesteps (k)", 10,   500,  100,    True,  False, None),
-        ("Learning Rate", 1e-4, 1e-2, 1e-3,  False,  True,  "{:.2e}"),
-        ("Init Epsilon",  0.5,   1.0,  1.0,  False,  False, None),
-        ("Final Epsilon", 0.01,  0.3,  0.1,  False,  False, None),
-        ("Buffer (k)",      1,    50,   10,   True,  False, None),
-        ("Step Cost",    0.01,   0.5, 0.05,  False,  False, None),
-        ("Seed",            0,   999,    0,   True,  False, None),
-    ]
-    # Environment parameter -> index of its slider in _SLIDER_SPECS
-    _ENV_SLIDERS = {"grid_size": 0, "num_packages": 1, "max_steps": 2, "step_cost": 8}
-
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        env_id: str = WAREHOUSE_ID,
+        renderer: Optional[Renderer] = None,
+        env_params: Optional[Sequence[Param]] = None,
+    ) -> None:
+        """Train ``env_id``, any registered Gymnasium id. Its profile
+        (lab_envs.py) supplies the renderer and environment sliders unless
+        ``renderer`` / ``env_params`` are given."""
         if not _SB3_AVAILABLE:
             raise SystemExit(
                 "stable-baselines3 is required.  "
                 "Install it with:  pip install stable-baselines3"
             )
-        if not _ENV_AVAILABLE:
-            raise SystemExit(
-                "warehouse_env.py not found.  "
-                "Run this script from the project directory."
-            )
+
+        self._env_id  = env_id
+        self._profile = get_profile(env_id)
+        # Draws the environment in the centre panel (see lab_render.py)
+        self._renderer = renderer if renderer is not None else self._profile.renderer()
+        if env_params is None:
+            env_params = self._profile.params
+        # One slider per setting, in this order (see lab_params.py)
+        self._params: Tuple[Param, ...] = (*env_params, *AGENT_PARAMS, *RUN_PARAMS)
 
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-        pygame.display.set_caption("Warehouse RL Training Lab")
+        pygame.display.set_caption(f"RL Training Lab - {env_id}")
         self.clock = pygame.time.Clock()
 
         # Font set
@@ -603,10 +566,11 @@ class Dashboard:
         # Sliders (left panel)
         sx, sw, sy = 12, LEFT_W - 24, 52
         gap = 48
-        self._sliders: List[Slider] = [
-            Slider(sx, sy + i * gap, sw, lbl, mn, mx, df, ii, ls, fm)
-            for i, (lbl, mn, mx, df, ii, ls, fm) in enumerate(self._SLIDER_SPECS)
-        ]
+        self._sliders: Dict[str, Slider] = {
+            p.name: Slider(sx, sy + i * gap, sw, p.label, p.min, p.max, p.default,
+                           p.type is int, p.log, p.fmt)
+            for i, p in enumerate(self._params)
+        }
 
         # Buttons (bottom bar)  –  seven buttons spread across the full width
         by  = CENTER_H + 20
@@ -662,7 +626,7 @@ class Dashboard:
                 elif event.type == pygame.KEYDOWN:
                     self._on_key(event.key)
 
-                for s in self._sliders:
+                for s in self._sliders.values():
                     s.handle_event(event)
 
                 if self._btns["START"].handle_event(event):
@@ -709,20 +673,13 @@ class Dashboard:
     # Commands
     # -------------------------------------------------------------------------
     def _get_params(self) -> dict:
-        s = self._sliders
+        """Slider values by target and name: {"env": {...}, "agent": {...}, "run": {...}}."""
+        values = {p.name: p.value(self._sliders[p.name].value) for p in self._params}
         return {
-            "grid_size":           int(s[0].value),
-            "num_packages":        int(s[1].value),
-            "max_steps":           int(s[2].value),
-            "total_timesteps":     int(s[3].value) * 1000,
-            "learning_rate":       s[4].value,
-            "exploration_initial": s[5].value,
-            "exploration_final":   s[6].value,
-            "buffer_size":         int(s[7].value) * 1000,
-            "step_cost":           s[8].value,
-            "seed":                int(s[9].value),
-            "load_path":           self._load_path,
-            "run_dir":             None,  # set by _cmd_start
+            "env_id":    self._env_id,
+            **by_target(self._params, values),
+            "load_path": self._load_path,
+            "run_dir":   None,  # set by _cmd_start
         }
 
     def _cmd_start(self) -> None:
@@ -731,17 +688,17 @@ class Dashboard:
         if self._thread and self._thread.is_alive():
             self._model_status = "Previous run still stopping"
             return
-        if not _SB3_AVAILABLE or not _ENV_AVAILABLE:
+        if not _SB3_AVAILABLE:
             self._model_status = "Missing dependencies – cannot train"
             return
         self._stop_ev.clear()
         self._pause_ev.clear()
         params = self._get_params()
         self._run_dir = new_run_dir(
-            RUNS_DIR, params["grid_size"], params["num_packages"], params["seed"]
+            RUNS_DIR, self._profile.run_tag(params["env"]), params["run"]["seed"]
         )
         params["run_dir"] = str(self._run_dir)
-        for s in self._sliders:
+        for s in self._sliders.values():
             s.mark_applied()
         self._ep_rewards = []
         self._metrics    = {}
@@ -812,15 +769,20 @@ class Dashboard:
             self._model_status = f"No saved model in {RUNS_DIR}/"
             return
         # Match the environment sliders to the saved run, so its model fits.
-        env = read_run_config(latest.parent).get("env", {})
-        sliders = {key: self._sliders[i] for key, i in self._ENV_SLIDERS.items()}
-        for key, s in sliders.items():
-            if key in env and not s.min_val <= env[key] <= s.max_val:
-                self._model_status = f"Can't load: {s.label} {env[key]} out of range"
+        config = read_run_config(latest.parent)
+        # Runs saved before config.json recorded env_id were all warehouse runs.
+        saved_id = config.get("env_id", WAREHOUSE_ID)
+        if saved_id != self._env_id:
+            self._model_status = f"Can't load: run is for {saved_id}"
+            return
+        env = config.get("env", {})
+        env_params = [p for p in self._params if p.target == "env" and p.name in env]
+        for p in env_params:
+            if not p.in_range(env[p.name]):
+                self._model_status = f"Can't load: {p.label} {env[p.name]} out of range"
                 return
-        for key, s in sliders.items():
-            if key in env:
-                s.set_value(env[key])
+        for p in env_params:
+            self._sliders[p.name].set_value(p.shown(env[p.name]))
         self._load_path = str(latest.with_suffix(""))
         self._model_status = f"Selected {latest.parent.name} (on START)"
 
@@ -906,7 +868,7 @@ class Dashboard:
         pygame.draw.line(surf, _c("border"), (8, 40), (LEFT_W - 8, 40), 1)
 
         training_active = self._state in ("training", "paused")
-        for s in self._sliders:
+        for s in self._sliders.values():
             s.draw(surf, self._fl, self._fv)
             if training_active:
                 # Dim sliders slightly while training to signal they're locked
@@ -915,72 +877,25 @@ class Dashboard:
                 surf.blit(dim, s.rect.topleft)
 
         # Unsaved-change indicator
-        if any(s._changed for s in self._sliders):
+        if any(s._changed for s in self._sliders.values()):
             note = self._fs.render(
                 "* Param changed -- restart to apply", True, _c("changed")
             )
-            y = self._sliders[-1].rect.bottom + 8
+            y = max(s.rect.bottom for s in self._sliders.values()) + 8
             surf.blit(note, (8, y))
 
     # -------------------------------------------------------------------------
-    # Center: live warehouse grid
+    # Center: the environment, drawn by its renderer
     # -------------------------------------------------------------------------
     def _draw_center(self) -> None:
         surf = self.screen
         m    = self._metrics
-        gs   = int(m.get("grid_size", int(self._sliders[0].value)))
+        area = pygame.Rect(LEFT_W + 20, 20, CENTER_W - 40, CENTER_H - 60)
+        # The render state as the env pushed it; None before the first update.
+        drawn = self._renderer.draw(surf, area, m.get("render_state")) or area
+        ox, oy, gw, gh = drawn
 
-        # Dynamic cell size to fill the available area
-        cell = min((CENTER_W - 40) // max(gs, 1), (CENTER_H - 60) // max(gs, 1))
-        cell = max(16, cell)
-        gw   = cell * gs
-        gh   = cell * gs
-        ox   = LEFT_W + (CENTER_W - gw) // 2
-        oy   = (CENTER_H - gh) // 2 - 10
-
-        # Delivery zone, as reported by the env (before the first update,
-        # the env's default bottom-right cell)
-        dzx, dzy = m.get("delivery_zone") or (gs - 1, gs - 1)
-        pygame.draw.rect(surf, _c("delivery"), (ox + dzx * cell, oy + dzy * cell, cell, cell))
-        dl = self._fs.render("D", True, _c("delivery_lbl"))
-        surf.blit(
-            dl,
-            (
-                ox + dzx * cell + (cell - dl.get_width())  // 2,
-                oy + dzy * cell + (cell - dl.get_height()) // 2,
-            ),
-        )
-
-        # Grid lines
-        for c in range(gs + 1):
-            x = ox + c * cell
-            pygame.draw.line(surf, _c("grid_line"), (x, oy), (x, oy + gh))
-        for r in range(gs + 1):
-            y = oy + r * cell
-            pygame.draw.line(surf, _c("grid_line"), (ox, y), (ox + gw, y))
-
-        # Packages
-        for pkg in m.get("packages", []):
-            px, py, delivered = int(pkg[0]), int(pkg[1]), bool(pkg[2])
-            col = _c("pkg_done") if delivered else _c("pkg_pend")
-            mg  = max(3, cell // 6)
-            pygame.draw.rect(
-                surf, col,
-                (ox + px * cell + mg, oy + py * cell + mg, cell - 2 * mg, cell - 2 * mg),
-                border_radius=max(2, cell // 8),
-            )
-
-        # Agent
-        ap      = m.get("agent_pos", [0, 0])
-        carrying = m.get("carrying", -1)
-        ax, ay  = int(ap[0]), int(ap[1])
-        acol    = _c("agent_carry") if carrying >= 0 else _c("agent")
-        rad     = max(4, cell // 3)
-        cx, cy  = ox + ax * cell + cell // 2, oy + ay * cell + cell // 2
-        pygame.draw.circle(surf, acol, (cx, cy), rad)
-        pygame.draw.circle(surf, _c("border"), (cx, cy), rad, 2)
-
-        # Episode / step / reward overlay below grid
+        # Episode / step / reward overlay below the drawing
         ep_r = m.get("ep_reward", 0.0)
         ep   = m.get("episode",   0)
         step = m.get("step",      0)
@@ -1072,7 +987,15 @@ class Dashboard:
             f"{avg:+.2f}" if avg is not None else "---",
             col="pos" if (avg or 0) >= 0 else "neg",
         )
-        row("Epsilon:", f"{m.get('epsilon', 1.0):.4f}")
+        y += 6
+
+        # -- Algorithm metrics, whichever the algorithm logs -----------------
+        hdr("=== ALGORITHM ===")
+        shown = display_metrics(m.get("algo_metrics") or {}, ALGO_ROWS)
+        for name, value in shown:
+            row(f"{name}:", value)
+        if not shown:
+            row("(none logged yet)", "")
         y += 6
 
         # -- Performance ------------------------------------------------------
@@ -1089,7 +1012,7 @@ class Dashboard:
 
         # Progress bar when training
         if self._state in ("training", "paused") and self._thread:
-            total = self._thread.params.get("total_timesteps", 1)
+            total = self._thread.params["run"]["total_timesteps"]
             pct   = min(1.0, m.get("run_steps", 0) / max(total, 1))
             bar_w = RIGHT_W - 24
             bar_h = 8
@@ -1206,7 +1129,7 @@ class Dashboard:
         parts = []
         if training and self._thread:
             ts    = self._metrics.get("run_steps", 0)
-            total = self._thread.params.get("total_timesteps", 1)
+            total = self._thread.params["run"]["total_timesteps"]
             pct   = min(100, int(ts / max(total, 1) * 100))
             parts.append(f"Progress: {pct}%  ({ts:,} steps)")
         parts.append(f"FPS: {self._fps}")
@@ -1227,7 +1150,15 @@ class Dashboard:
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
-    Dashboard().run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Interactive RL training lab")
+    parser.add_argument(
+        "--env", default=WAREHOUSE_ID,
+        help=f"Gymnasium environment id to train (default: {WAREHOUSE_ID}); "
+             "'module:Env-v0' imports module first",
+    )
+    Dashboard(env_id=parser.parse_args().env).run()
 
 
 if __name__ == "__main__":
