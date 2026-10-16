@@ -237,6 +237,37 @@ train_agent(
 )
 ```
 
+### Training Other Environments
+
+The dashboard is not tied to the warehouse. Any registered Gymnasium
+environment can be trained with
+
+```bash
+python ui_dashboard.py --env CartPole-v1
+```
+
+and nothing in the repository is specific to CartPole:
+`tests/test_cartpole_acceptance.py` runs the dashboard's own loop headlessly
+on the stock environment, from START to a saved model.
+
+What an environment can add, all optional:
+
+- **`info["render_state"]`** from `reset()` and `step()`: plain data saying
+  what to draw. Without it the dashboard draws the observation, one bar per
+  component (`lab_envs.ObservationRenderState`,
+  `lab_render.ObservationRenderer`).
+- **A profile** (`lab_envs.EnvProfile`, registered with `register_profile`):
+  sliders for its constructor arguments (`lab_params.Param`), a renderer
+  (`lab_render.Renderer`, whose `draw(surface, rect, state)` draws a render
+  state into a rectangle) and a run-folder name. `warehouse_lab.py` is
+  Warehouse-v0's profile.
+
+The right panel shows whichever metrics the algorithm logs, by name.
+
+Limits: the agent is always DQN with an MLP policy, so the action space must
+be `Discrete` and the observation flattenable to a vector. The command-line
+trainer and its live visualizer (`train_agent.py`) remain warehouse-specific.
+
 ## Environment Details
 
 ### Creating the Environment
@@ -334,7 +365,10 @@ The suite covers the environment contract (observation layout and bounds,
 each reward term, termination and truncation, Gymnasium's `check_env`),
 seeding and reproducibility, the training callbacks (final frame of each
 episode, episode stepping, reward history), the dashboard's state machine
-(driven headlessly), run folders, checkpointing, saving mid-run and resuming.
+(driven headlessly), run folders, checkpointing, saving mid-run and resuming,
+the render-state contract (including callbacks against a `SubprocVecEnv`),
+renderers, the parameter schema, algorithm metrics (DQN and PPO), and the
+dashboard training stock CartPole-v1 end to end.
 It trains only tiny models and runs in well under a minute.
 
 ## Reproducibility
