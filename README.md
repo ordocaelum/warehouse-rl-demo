@@ -113,7 +113,10 @@ This will:
 - Train for 100,000 timesteps
 - Save the trained model as `warehouse_dqn_model.zip`
 - Generate `training_progress.png` showing reward curves
-- Test the agent on 3 episodes
+- Test the agent on 3 episodes, on the same environment configuration it trained on
+
+Options: `--timesteps`, `--seed`, `--grid-size`, `--packages`, `--max-steps`,
+`--step-cost` (see `python train_agent.py --help`).
 
 ### Live Interactive Visualizer
 
@@ -166,8 +169,8 @@ Edit parameters in `train_agent.py`:
 # Modify training duration
 train_agent(total_timesteps=100000)
 
-# Test on more episodes
-test_agent(num_episodes=5)
+# Test on more episodes (pass the configuration the model was trained on)
+test_agent(num_episodes=5, grid_size=10, num_packages=2)
 ```
 
 Edit environment parameters via constructor arguments in `warehouse_env.py` or `train_agent.py`:

@@ -203,13 +203,27 @@ def visualize_training(callback: RewardCallback):
     plt.savefig("training_progress.png")
     plt.show()
 
-def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3):
-    """Test trained agent."""
-    env = WarehouseEnv(render_mode="human")  # prints the grid after every step
+def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3,
+               render: bool = True, seed: int | None = None, **env_kwargs):
+    """Run the trained agent greedily and return each episode's total reward.
+
+    ``env_kwargs`` (grid_size, num_packages, max_steps, step_cost) must match
+    the configuration the model was trained on.
+    """
+    # "human" prints the grid after every step
+    env = WarehouseEnv(render_mode="human" if render else None, **env_kwargs)
     model = DQN.load(model_path)
-    
+    if model.observation_space != env.observation_space:
+        env.close()
+        raise ValueError(
+            f"{model_path} was trained on a different configuration "
+            f"(observation space {model.observation_space}, this env has "
+            f"{env.observation_space}); pass the training grid_size and num_packages"
+        )
+
+    episode_rewards = []
     for episode in range(num_episodes):
-        obs, _ = env.reset()
+        obs, _ = env.reset(seed=seed if episode == 0 else None)
         done = False
         total_reward = 0
         
@@ -221,7 +235,9 @@ def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3):
             done = terminated or truncated
         
         print(f"Episode {episode + 1} Total Reward: {total_reward}")
+        episode_rewards.append(total_reward)
     env.close()
+    return episode_rewards
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train warehouse DQN agent")
@@ -237,12 +253,24 @@ if __name__ == "__main__":
         "--seed", type=int, default=0,
         help="Random seed for env, agent and torch (default: 0)"
     )
+    parser.add_argument("--grid-size", type=int, default=8, help="Grid size (default: 8)")
+    parser.add_argument("--packages", type=int, default=1, help="Packages (default: 1)")
+    parser.add_argument("--max-steps", type=int, default=300, help="Episode step limit (default: 300)")
+    parser.add_argument("--step-cost", type=float, default=0.05, help="Per-step cost (default: 0.05)")
     args = parser.parse_args()
+
+    # The same environment configuration is used for training and testing.
+    env_config = dict(
+        grid_size=args.grid_size,
+        num_packages=args.packages,
+        max_steps=args.max_steps,
+        step_cost=args.step_cost,
+    )
 
     visualizer = None
     if args.visualize:
         from visualizer_pygame import WarehouseVisualizer
-        visualizer = WarehouseVisualizer(grid_size=8)
+        visualizer = WarehouseVisualizer(grid_size=args.grid_size)
         visualizer.start()
         print("Live visualizer started. Controls: SPACE=pause  S=step  ↑↓=zoom  drag=pan  R=reset")
 
@@ -252,6 +280,7 @@ if __name__ == "__main__":
         total_timesteps=args.timesteps,
         visualizer=visualizer,
         seed=args.seed,
+        **env_config,
     )
 
     env.close()
@@ -264,4 +293,4 @@ if __name__ == "__main__":
 
     # Test
     print("Testing trained agent...")
-    test_agent(num_episodes=3)
+    test_agent(num_episodes=3, seed=args.seed, **env_config)
