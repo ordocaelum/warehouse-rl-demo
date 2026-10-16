@@ -341,6 +341,18 @@ class _Callback(_BaseCallback):
         while hasattr(raw, "env"):
             raw = raw.env
 
+        # On the last step of an episode the VecEnv has already reset the
+        # env, so draw the final frame from the terminal observation.
+        if done:
+            terminal_obs = self.locals["infos"][0]["terminal_observation"]
+            env_state = WarehouseEnv.state_from_observation(terminal_obs)
+        else:
+            env_state = {
+                "agent_pos": raw.agent_pos.tolist(),
+                "packages":  [list(p) for p in raw.packages],
+                "carrying":  int(raw.carrying),
+            }
+
         metrics: Dict = {
             "episode":     self._ep_n,
             "step":        self._step_n,
@@ -348,9 +360,7 @@ class _Callback(_BaseCallback):
             "ep_reward":   self._ep_r,
             "avg_reward":  avg,
             "epsilon":     eps,
-            "agent_pos":   raw.agent_pos.tolist(),
-            "packages":    [list(p) for p in raw.packages],
-            "carrying":    int(raw.carrying),
+            **env_state,
             "grid_size":   int(raw.grid_size),
             "total_steps": self.num_timesteps,
             "elapsed":     time.time() - self._t0,

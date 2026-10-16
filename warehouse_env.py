@@ -72,7 +72,31 @@ class WarehouseEnv(gym.Env):
         for pkg in self.packages:
             obs.extend([pkg[0], pkg[1], float(pkg[2])])
         return np.array(obs, dtype=np.float32)
-    
+
+    @staticmethod
+    def state_from_observation(obs) -> Dict[str, Any]:
+        """Rebuild the drawable state (agent, carrying, packages) from an observation.
+
+        Used for the last step of an episode: vectorised envs reset on done,
+        so the env object already holds the next episode, and only the
+        terminal observation still describes the final frame.  Only a
+        carrying *flag* is observed, so ``carrying`` is reported as the
+        lowest-indexed undelivered package on the agent's cell.
+        """
+        obs = np.asarray(obs)
+        agent_pos = [int(obs[0]), int(obs[1])]
+        packages = [
+            [int(obs[i]), int(obs[i + 1]), int(obs[i + 2])]
+            for i in range(3, len(obs), 3)
+        ]
+        carrying = -1
+        if obs[2] >= 0.5:
+            carrying = next(
+                (k for k, p in enumerate(packages) if p[:2] == agent_pos and not p[2]),
+                -1,
+            )
+        return {"agent_pos": agent_pos, "carrying": carrying, "packages": packages}
+
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         """Reset environment to initial state."""
         super().reset(seed=seed)

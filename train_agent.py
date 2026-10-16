@@ -22,6 +22,7 @@ class RewardCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         reward = self.locals.get("rewards", [0])[0]
+        done = bool(self.locals.get("dones", [False])[0])
         self.current_reward += reward
         self._step_in_ep += 1
 
@@ -32,6 +33,18 @@ class RewardCallback(BaseCallback):
             raw_env = env
             while hasattr(raw_env, "env"):
                 raw_env = raw_env.env
+
+            # On the last step of an episode the VecEnv has already reset the
+            # env, so draw the final frame from the terminal observation.
+            if done:
+                terminal_obs = self.locals["infos"][0]["terminal_observation"]
+                env_state = WarehouseEnv.state_from_observation(terminal_obs)
+            else:
+                env_state = {
+                    "agent_pos": raw_env.agent_pos.tolist(),
+                    "packages":  [list(p) for p in raw_env.packages],
+                    "carrying":  int(raw_env.carrying),
+                }
 
             avg_reward = None
             window = self.episode_rewards[-50:]
@@ -49,9 +62,7 @@ class RewardCallback(BaseCallback):
                 "ep_reward": float(self.current_reward),
                 "avg_reward": avg_reward,
                 "epsilon":   epsilon,
-                "agent_pos": raw_env.agent_pos.tolist(),
-                "packages":  [list(p) for p in raw_env.packages],
-                "carrying":  int(raw_env.carrying),
+                **env_state,
                 "grid_size": int(raw_env.grid_size),
             })
 
@@ -62,7 +73,7 @@ class RewardCallback(BaseCallback):
                 time.sleep(0.05)
 
         # End of episode bookkeeping
-        if self.locals.get("dones", [False])[0]:
+        if done:
             self.episode_rewards.append(self.current_reward)
             self.current_reward = 0
             self._episode_num += 1
