@@ -21,13 +21,15 @@ toc:
   <ol>
     <li>Clone repository and enter project directory.</li>
     <li>Create and activate virtual environment.</li>
-    <li>Install dependencies from requirements file.</li>
+    <li>Install dependencies from the lock file.</li>
   </ol>
+  <p>Use Python 3.12 or 3.13: numpy 2.5 needs 3.12 or later, and pygame 2.6.1 has no Python 3.14 wheels.</p>
   {% include code-block.html code="git clone https://github.com/ordocaelum/warehouse-rl-demo.git
 cd warehouse-rl-demo
 python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt" %}
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.lock" %}
+  <p><code>requirements.lock</code> pins every package, including transitive ones, for all platforms; it is what the test suite was run with. <code>requirements.txt</code> pins only the direct dependencies.</p>
 </section>
 
 <section id="interactive-lab">
