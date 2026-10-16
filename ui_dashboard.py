@@ -13,7 +13,6 @@ Keyboard shortcuts:
 
 from __future__ import annotations
 
-import functools
 import math
 import os
 import queue
@@ -32,12 +31,12 @@ except ImportError as exc:
 
 try:
     from stable_baselines3 import DQN
-    from stable_baselines3.common.env_util import make_vec_env
     from stable_baselines3.common.callbacks import BaseCallback as _BaseCallback
+    from train_agent import make_dqn, make_env
     _SB3_AVAILABLE = True
 except ImportError:
     DQN = None          # type: ignore[assignment,misc]
-    make_vec_env = None  # type: ignore[assignment]
+    make_dqn = make_env = None  # type: ignore[assignment]
     _SB3_AVAILABLE = False
 
     class _BaseCallback:  # type: ignore[no-redef]
@@ -409,28 +408,25 @@ class _TrainingThread(threading.Thread):
     def run(self) -> None:
         try:
             p = self.params
-            make_fn = functools.partial(
-                WarehouseEnv,
+            # Same construction as train_agent.py, so identical settings
+            # train identically from either entry point.
+            env = make_env(
                 grid_size    = int(p["grid_size"]),
                 num_packages = int(p["num_packages"]),
                 max_steps    = int(p["max_steps"]),
                 step_cost    = float(p["step_cost"]),
+                seed         = int(p["seed"]),
             )
-            env = make_vec_env(make_fn, n_envs=1, seed=int(p["seed"]))
             self._env = env
 
-            model = DQN(
-                "MlpPolicy",
+            model = make_dqn(
                 env,
-                learning_rate           = float(p["learning_rate"]),
-                buffer_size             = int(p["buffer_size"]),
-                learning_starts         = min(500, int(p["total_timesteps"]) // 20),
-                target_update_interval  = 500,
-                exploration_fraction    = 0.3,
-                exploration_initial_eps = float(p["exploration_initial"]),
-                exploration_final_eps   = float(p["exploration_final"]),
-                seed                    = int(p["seed"]),
-                verbose                 = 0,
+                learning_rate       = float(p["learning_rate"]),
+                buffer_size         = int(p["buffer_size"]),
+                exploration_initial = float(p["exploration_initial"]),
+                exploration_final   = float(p["exploration_final"]),
+                seed                = int(p["seed"]),
+                verbose             = 0,
             )
 
             # Continue from an existing saved model if requested

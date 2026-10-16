@@ -307,6 +307,10 @@ What is **not** guaranteed:
 
 ## DQN Agent Parameters
 
+The command line and the dashboard build the agent with the same function
+(`make_dqn` in `train_agent.py`), so the same settings train the same way from
+either. Settings without a slider or flag are fixed:
+
 ```python
 DQN(
     learning_rate=1e-3,           # Learning rate

@@ -2,7 +2,6 @@ import argparse
 import functools
 import time
 import numpy as np
-import matplotlib.pyplot as plt
 from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback
@@ -92,6 +91,48 @@ class RewardCallback(BaseCallback):
         return True
 
 
+# DQN settings that have no CLI flag or dashboard slider. Both entry points
+# build their model through make_env() and make_dqn(), so the same visible
+# settings always train the same way.
+LEARNING_STARTS = 500
+TARGET_UPDATE_INTERVAL = 500
+EXPLORATION_FRACTION = 0.2
+
+
+def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
+             step_cost: float = 0.05, seed: int | None = None):
+    """The single-env DummyVecEnv (with Monitor) that both entry points train on."""
+    make_fn = functools.partial(
+        WarehouseEnv,
+        grid_size=grid_size,
+        num_packages=num_packages,
+        max_steps=max_steps,
+        step_cost=step_cost,
+    )
+    return make_vec_env(make_fn, n_envs=1, seed=seed)
+
+
+def make_dqn(env, learning_rate: float = 1e-3, buffer_size: int = 10000,
+             exploration_initial: float = 1.0, exploration_final: float = 0.1,
+             exploration_fraction: float = EXPLORATION_FRACTION,
+             seed: int | None = None, verbose: int = 0) -> DQN:
+    """The DQN configuration shared by the CLI and the dashboard."""
+    # Note: DQN is based on Q-learning principles
+    return DQN(
+        "MlpPolicy",
+        env,
+        learning_rate=learning_rate,
+        buffer_size=buffer_size,
+        learning_starts=LEARNING_STARTS,
+        target_update_interval=TARGET_UPDATE_INTERVAL,
+        exploration_fraction=exploration_fraction,
+        exploration_initial_eps=exploration_initial,
+        exploration_final_eps=exploration_final,
+        seed=seed,
+        verbose=verbose,
+    )
+
+
 def train_agent(
     total_timesteps: int = 100000,
     visualizer=None,
@@ -103,7 +144,7 @@ def train_agent(
     buffer_size: int = 10000,
     exploration_initial: float = 1.0,
     exploration_final: float = 0.1,
-    exploration_fraction: float = 0.2,
+    exploration_fraction: float = EXPLORATION_FRACTION,
     seed: int | None = None,
 ):
     """Train DQN agent on warehouse environment.
@@ -112,30 +153,16 @@ def train_agent(
     ``random`` and torch (via SB3).  ``None`` means an unseeded run.
     """
 
-    # Create environment with configurable parameters
-    make_fn = functools.partial(
-        WarehouseEnv,
-        grid_size=grid_size,
-        num_packages=num_packages,
-        max_steps=max_steps,
-        step_cost=step_cost,
-    )
-    env = make_vec_env(make_fn, n_envs=1, seed=seed)
-
-    # Initialize DQN agent
-    # Note: DQN is based on Q-learning principles
-    model = DQN(
-        "MlpPolicy",
+    env = make_env(grid_size, num_packages, max_steps, step_cost, seed=seed)
+    model = make_dqn(
         env,
         learning_rate=learning_rate,
         buffer_size=buffer_size,
-        learning_starts=500,
-        target_update_interval=500,
+        exploration_initial=exploration_initial,
+        exploration_final=exploration_final,
         exploration_fraction=exploration_fraction,
-        exploration_initial_eps=exploration_initial,
-        exploration_final_eps=exploration_final,
         seed=seed,
-        verbose=1
+        verbose=1,
     )
 
     # Train with callback
@@ -149,6 +176,8 @@ def train_agent(
 
 def visualize_training(callback: RewardCallback):
     """Plot training progress."""
+    import matplotlib.pyplot as plt  # only needed here; keeps the dashboard light
+
     plt.figure(figsize=(12, 5))
     
     # Episode rewards

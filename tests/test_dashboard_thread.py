@@ -44,3 +44,33 @@ def test_completed_run_saves_model(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _run(stop_immediately=False)
     assert os.path.exists(tmp_path / "warehouse_dqn_model.zip")
+
+
+def test_dashboard_and_cli_build_identical_agents(tmp_path, monkeypatch):
+    """The same visible settings must give the same DQN from either entry point."""
+    from train_agent import train_agent
+
+    monkeypatch.chdir(tmp_path)
+    ui_model = _run(stop_immediately=True)
+    cli_model, _, env = train_agent(
+        total_timesteps=1,
+        grid_size=PARAMS["grid_size"], num_packages=PARAMS["num_packages"],
+        max_steps=PARAMS["max_steps"], step_cost=PARAMS["step_cost"],
+        learning_rate=PARAMS["learning_rate"], buffer_size=PARAMS["buffer_size"],
+        exploration_initial=PARAMS["exploration_initial"],
+        exploration_final=PARAMS["exploration_final"], seed=PARAMS["seed"],
+    )
+    env.close()
+
+    def settings(model):
+        return {
+            name: getattr(model, name)
+            for name in (
+                "learning_rate", "buffer_size", "learning_starts", "batch_size",
+                "tau", "gamma", "gradient_steps", "target_update_interval",
+                "exploration_fraction", "exploration_initial_eps",
+                "exploration_final_eps", "max_grad_norm", "seed",
+            )
+        } | {"train_freq": tuple(model.train_freq), "net_arch": model.policy.net_arch}
+
+    assert settings(ui_model) == settings(cli_model)
