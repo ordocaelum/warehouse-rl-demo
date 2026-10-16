@@ -404,7 +404,7 @@ class _TrainingThread(threading.Thread):
                 max_steps    = int(p["max_steps"]),
                 step_cost    = float(p["step_cost"]),
             )
-            env = make_vec_env(make_fn, n_envs=1)
+            env = make_vec_env(make_fn, n_envs=1, seed=int(p["seed"]))
 
             model = DQN(
                 "MlpPolicy",
@@ -416,6 +416,7 @@ class _TrainingThread(threading.Thread):
                 exploration_fraction    = 0.3,
                 exploration_initial_eps = float(p["exploration_initial"]),
                 exploration_final_eps   = float(p["exploration_final"]),
+                seed                    = int(p["seed"]),
                 verbose                 = 0,
             )
 
@@ -456,6 +457,7 @@ class Dashboard:
         ("Final Epsilon", 0.01,  0.3,  0.1,  False,  False, None),
         ("Buffer (k)",      1,    50,   10,   True,  False, None),
         ("Step Cost",    0.01,   0.5, 0.05,  False,  False, None),
+        ("Seed",            0,   999,    0,   True,  False, None),
     ]
 
     def __init__(self) -> None:
@@ -635,6 +637,7 @@ class Dashboard:
             "exploration_final":   s[6].value,
             "buffer_size":         int(s[7].value) * 1000,
             "step_cost":           s[8].value,
+            "seed":                int(s[9].value),
             "load_path":           self._load_path,
         }
 

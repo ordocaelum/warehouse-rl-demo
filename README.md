@@ -69,6 +69,7 @@ A 1300×780 window opens with three panels:
 | Final Epsilon | 0.01 – 0.3 | 0.1 | Ending exploration rate |
 | Buffer (k) | 1k – 50k | 10k | Replay buffer size |
 | Step Cost | 0.01 – 0.5 | 0.05 | Per-step reward penalty |
+| Seed | 0 – 999 | 0 | Random seed for the environment, agent and torch |
 
 #### Center Panel – Live Warehouse Grid
 
@@ -232,6 +233,29 @@ train_agent(
 - **1-3** = Packages (numbers)
 - **D** = Delivery zones
 - **.** = Empty space
+
+## Reproducibility
+
+Runs are seeded.  `python train_agent.py --seed N` (default `0`) and the
+dashboard's **Seed** slider pass the seed to the environment
+(`make_vec_env(seed=...)`) and to `DQN(seed=...)`, which seeds the action
+space, `numpy`, Python's `random` and torch.  The environment draws all of its
+randomness from `self.np_random`, so `env.reset(seed=N)` always produces the
+same package layout.
+
+What is covered by tests (`pytest`):
+
+- identical seeds give identical resets and identical step-by-step rollouts;
+- the environment never touches the process-global `np.random`;
+- two short CPU training runs with the same seed finish with identical
+  network weights and identical episode rewards.
+
+What is **not** guaranteed:
+
+- **GPU training.** Some CUDA kernels are nondeterministic; seeding does not
+  make GPU runs bit-identical.  SB3 uses a GPU automatically when torch can
+  see one (`device="auto"`); the determinism test above runs on the CPU.
+- **Different installs.** Results depend on the installed library versions.
 
 ## DQN Agent Parameters
 

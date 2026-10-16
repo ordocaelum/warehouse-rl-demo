@@ -48,9 +48,11 @@ class WarehouseEnv(gym.Env):
     def _init_packages(self):
         """Randomly place packages in the grid."""
         self.packages = []
+        # Use the env's own generator (seeded by reset(seed=...)), never the
+        # process-global np.random, so identical seeds give identical layouts.
         for i in range(self.num_packages):
-            x = np.random.randint(1, self.grid_size - 1)
-            y = np.random.randint(1, self.grid_size - 1)
+            x = int(self.np_random.integers(1, self.grid_size - 1))
+            y = int(self.np_random.integers(1, self.grid_size - 1))
             self.packages.append([x, y, 0])  # [x, y, delivered]
         self.last_distance = float('inf')
 

@@ -83,8 +83,13 @@ def train_agent(
     exploration_initial: float = 1.0,
     exploration_final: float = 0.1,
     exploration_fraction: float = 0.2,
+    seed: int | None = None,
 ):
-    """Train DQN agent on warehouse environment."""
+    """Train DQN agent on warehouse environment.
+
+    ``seed`` seeds the environment, the action space, numpy, Python's
+    ``random`` and torch (via SB3).  ``None`` means an unseeded run.
+    """
 
     # Create environment with configurable parameters
     make_fn = functools.partial(
@@ -94,7 +99,7 @@ def train_agent(
         max_steps=max_steps,
         step_cost=step_cost,
     )
-    env = make_vec_env(make_fn, n_envs=1)
+    env = make_vec_env(make_fn, n_envs=1, seed=seed)
 
     # Initialize DQN agent
     # Note: DQN is based on Q-learning principles
@@ -108,6 +113,7 @@ def train_agent(
         exploration_fraction=exploration_fraction,
         exploration_initial_eps=exploration_initial,
         exploration_final_eps=exploration_final,
+        seed=seed,
         verbose=1
     )
 
@@ -177,6 +183,10 @@ if __name__ == "__main__":
         "--timesteps", type=int, default=100000,
         help="Total training timesteps (default: 100000)"
     )
+    parser.add_argument(
+        "--seed", type=int, default=0,
+        help="Random seed for env, agent and torch (default: 0)"
+    )
     args = parser.parse_args()
 
     visualizer = None
@@ -191,6 +201,7 @@ if __name__ == "__main__":
     model, callback, env = train_agent(
         total_timesteps=args.timesteps,
         visualizer=visualizer,
+        seed=args.seed,
     )
 
     if visualizer is not None:
