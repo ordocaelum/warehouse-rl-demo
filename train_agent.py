@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
 from stable_baselines3.common.logger import configure as configure_sb3_logger
 from warehouse_env import WarehouseEnv
 
@@ -19,6 +19,8 @@ log = logging.getLogger("warehouse")
 
 # Every training run writes its outputs to its own folder under here.
 RUNS_DIR = "runs"
+# Steps between checkpoints (model + replay buffer) in <run>/checkpoints/.
+CHECKPOINT_FREQ = 10_000
 
 
 class RewardCallback(BaseCallback):
@@ -147,6 +149,52 @@ def attach_run_logger(model, run_dir, stdout: bool = False) -> None:
     model.set_logger(configure_sb3_logger(str(run_dir), formats))
 
 
+def replay_buffer_path(model_path) -> Path:
+    """Where the replay buffer saved with ``model_path`` (with or without .zip) lives."""
+    model_path = Path(model_path)
+    if model_path.suffix == ".zip":
+        model_path = model_path.with_suffix("")
+    return model_path.with_name(model_path.name + "_replay_buffer.pkl")
+
+
+def save_run_model(model, model_path) -> None:
+    """Save the model and its replay buffer, so training can resume exactly."""
+    model.save(model_path)
+    model.save_replay_buffer(replay_buffer_path(model_path))
+
+
+def load_run_model(model_path, env, seed: int | None = None) -> DQN:
+    """Load a saved model to continue training it on ``env``.
+
+    Restores everything SB3 saves (weights, optimizer state, hyperparameters,
+    step count) plus the replay buffer if it was saved alongside. Raises
+    ValueError if ``env``'s observation space differs from the model's.
+    """
+    model = DQN.load(model_path, env=env)
+    if seed is not None:
+        model.set_random_seed(seed)
+    buffer_path = replay_buffer_path(model_path)
+    if buffer_path.exists():
+        model.load_replay_buffer(buffer_path)
+    return model
+
+
+def read_run_config(run_dir) -> dict:
+    """The config.json a run wrote, or {} if there is none."""
+    path = Path(run_dir) / "config.json"
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def checkpoint_callback(run_dir, save_freq: int = CHECKPOINT_FREQ) -> CheckpointCallback:
+    """Save model + replay buffer to run_dir/checkpoints every ``save_freq`` steps."""
+    return CheckpointCallback(
+        save_freq=save_freq,
+        save_path=str(Path(run_dir) / "checkpoints"),
+        name_prefix="model",
+        save_replay_buffer=True,
+    )
+
+
 def find_latest_model(runs_dir=RUNS_DIR) -> Path | None:
     """The most recently written runs/*/model.zip, or None."""
     models = sorted(Path(runs_dir).glob("*/model.zip"), key=lambda p: p.stat().st_mtime)
@@ -208,6 +256,7 @@ def train_agent(
     exploration_fraction: float = EXPLORATION_FRACTION,
     seed: int | None = None,
     run_dir=None,
+    checkpoint_freq: int = CHECKPOINT_FREQ,
 ):
     """Train DQN agent on warehouse environment.
 
@@ -215,8 +264,9 @@ def train_agent(
     ``random`` and torch (via SB3).  ``None`` means an unseeded run.
 
     Outputs go to ``run_dir`` (a new folder under ``runs/`` if not given):
-    config.json, model.zip, 0.monitor.csv, progress.csv and TensorBoard
-    event files.
+    config.json, model.zip and its replay buffer, checkpoints/ (every
+    ``checkpoint_freq`` steps; 0 disables), 0.monitor.csv, progress.csv
+    and TensorBoard event files.
     """
     env_config = dict(grid_size=grid_size, num_packages=num_packages,
                       max_steps=max_steps, step_cost=step_cost)
@@ -242,9 +292,12 @@ def train_agent(
 
     # Train with callback
     callback = RewardCallback(visualizer=visualizer)
-    model.learn(total_timesteps=total_timesteps, callback=callback)
+    callbacks = [callback]
+    if checkpoint_freq > 0:
+        callbacks.append(checkpoint_callback(run_dir, checkpoint_freq))
+    model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
 
-    model.save(run_dir / "model")
+    save_run_model(model, run_dir / "model")
     log.info("Model saved to %s", run_dir / "model.zip")
 
     return model, callback, env
@@ -336,6 +389,10 @@ if __name__ == "__main__":
     parser.add_argument("--max-steps", type=int, default=300, help="Episode step limit (default: 300)")
     parser.add_argument("--step-cost", type=float, default=0.05, help="Per-step cost (default: 0.05)")
     parser.add_argument(
+        "--checkpoint-freq", type=int, default=CHECKPOINT_FREQ,
+        help=f"Save a checkpoint every N steps, 0 to disable (default: {CHECKPOINT_FREQ})",
+    )
+    parser.add_argument(
         "--runs-dir", default=RUNS_DIR,
         help=f"Folder for run outputs; each run gets a subfolder (default: {RUNS_DIR})",
     )
@@ -361,6 +418,7 @@ if __name__ == "__main__":
             visualizer=visualizer,
             seed=args.seed,
             run_dir=run_dir,
+            checkpoint_freq=args.checkpoint_freq,
             **env_config,
         )
 

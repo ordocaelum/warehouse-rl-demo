@@ -102,3 +102,36 @@ def test_reward_history_gets_each_episode_and_reset_sticks(dashboard):
     # after that step's metrics were sent.)
     assert len(dashboard._ep_rewards) >= 1
     assert len(dashboard._ep_rewards) <= latest["episode"] + 1 - before_reset
+
+
+def test_load_matches_sliders_to_the_saved_run_and_resumes(dashboard):
+    import train_agent as ta
+
+    _, _, env = ta.train_agent(total_timesteps=600, seed=0, grid_size=6, num_packages=2,
+                               max_steps=100, checkpoint_freq=0)  # into ./runs/
+    env.close()
+
+    dashboard._cmd_load()
+    assert dashboard._model_status.startswith("Selected"), dashboard._model_status
+    assert [s.value for s in dashboard._sliders[:3]] == [6, 2, 100]
+    assert dashboard._model_status.startswith("Selected")
+
+    _set_timesteps(dashboard, 1)
+    dashboard._cmd_start()
+    _wait_for(lambda: not dashboard._thread.is_alive())
+    dashboard._apply_finished()
+    assert dashboard._state == "done", dashboard._err_msg
+    assert dashboard._model.num_timesteps == 1600
+
+
+def test_load_refuses_a_run_the_sliders_cannot_represent(dashboard):
+    import train_agent as ta
+
+    _, _, env = ta.train_agent(total_timesteps=100, seed=0, grid_size=4, checkpoint_freq=0)
+    env.close()
+    before = [s.value for s in dashboard._sliders]
+
+    dashboard._cmd_load()
+    assert dashboard._model_status == "Can't load: Grid Size 4 out of range"
+    assert dashboard._load_path is None
+    assert [s.value for s in dashboard._sliders] == before

@@ -239,8 +239,8 @@ Starting at 8×8, 1 package:
 **How to save:**
 1. Watch training until it stabilizes (5-20 minutes)
 2. Check the reward graph for upward/stable trend
-3. Click **[SAVE MODEL]** button
-4. Model saves to `runs/<run>/model.zip`
+3. Click **[SAVE MODEL]** button (works while training or paused, too)
+4. Model saves to `runs/<run>/model.zip`, with its replay buffer next to it
 
 Every START gets its own folder under `runs/`, named after the time, grid size,
 package count and seed (e.g. `runs/20261016-153012_g8_p1_s0/`), so a new run
@@ -248,7 +248,8 @@ never overwrites an earlier model. A run that completes saves its model
 automatically; a stopped run saves only when you click SAVE MODEL. The folder
 also holds `config.json` (the run's settings), `0.monitor.csv` (per-episode
 reward and length) and SB3's training metrics (`progress.csv` and TensorBoard
-files: `tensorboard --logdir runs`).
+files: `tensorboard --logdir runs`). Every 10,000 steps a checkpoint (model and
+replay buffer) is also written to `runs/<run>/checkpoints/`.
 
 **Naming convention (manual):**
 ```bash
@@ -256,6 +257,13 @@ cp runs/<run>/model.zip models/model_stage1_8x8_1pkg.zip
 ```
 
 ### Loading Models
+
+**LOAD MODEL** selects the most recently saved `runs/*/model.zip` and sets the
+Grid Size, Packages, Max Steps and Step Cost sliders to the values it was trained
+with. The next START **resumes** that model: its weights, optimizer state,
+hyperparameters, step count and replay buffer all carry on, and the agent
+sliders (learning rate, epsilon, buffer) do not apply to the resumed run. The
+resumed run writes to a new run folder.
 
 **When you can load:**
 ✅ Same environment configuration (same grid size and package count)
@@ -281,12 +289,11 @@ cp runs/<run>/model.zip models/model_stage1_8x8_1pkg.zip
 
 ### Issue: Model crashes on load with "Observation spaces do not match"
 
-**Cause:** The loaded model was trained with a different grid size or package count. The model is loaded when you press START, so the error appears then (state shows ERROR).
+**Cause:** The loaded model was trained with a different grid size or package count. The model is loaded when you press START, so the error appears then (state shows ERROR). LOAD MODEL sets these sliders for you, so this happens only if you change them between LOAD and START.
 
 **Solution:**
-1. Set **Grid Size** and **Packages** to the values the saved model was trained with
-2. Click **LOAD MODEL**
-3. Click **START TRAINING**
+1. Click **LOAD MODEL** again (it resets Grid Size and Packages to the saved model's values)
+2. Click **START TRAINING** without changing them
 
 (RESET STATS only clears the displayed graph and metrics; it has no effect on loading.)
 
@@ -543,7 +550,7 @@ If things break:
 ### Pro Tip #1: Keyboard Shortcuts
 ```
 SPACE → Pause/Resume training
-S     → Save model (once training has finished or been stopped)
+S     → Save model (any time, including while training or paused)
 R     → Reset stats
 Q/ESC → Exit
 ```

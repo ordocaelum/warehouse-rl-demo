@@ -103,8 +103,8 @@ A 1300×780 window opens with three panels:
 | START TRAINING | — | Begin training with current slider settings |
 | PAUSE / RESUME | **SPACE** | Pause or resume the training loop |
 | STOP | — | Terminate training gracefully |
-| SAVE MODEL | **S** | Save model to the current run's folder, `runs/<run>/model.zip` |
-| LOAD MODEL | — | Select the most recent saved model for the next training run |
+| SAVE MODEL | **S** | Save model and replay buffer to the current run's folder, `runs/<run>/model.zip`. Works while training or paused |
+| LOAD MODEL | — | Select the most recent saved model and set the environment sliders to match; the next START resumes it (weights, optimizer, hyperparameters, step count, replay buffer) |
 | RESET STATS | **R** | Clear reward history and metrics |
 | EXIT | **Q** / **ESC** | Stop training and close the window |
 
@@ -124,7 +124,7 @@ This will:
 - Test the agent on 3 episodes, on the same environment configuration it trained on
 
 Options: `--timesteps`, `--seed`, `--grid-size`, `--packages`, `--max-steps`,
-`--step-cost`, `--runs-dir` (see `python train_agent.py --help`).
+`--step-cost`, `--checkpoint-freq`, `--runs-dir` (see `python train_agent.py --help`).
 
 ### Run Folders
 
@@ -135,7 +135,8 @@ overwrite each other:
 | File | Contents |
 |------|----------|
 | `config.json` | Environment and agent settings, seed, timesteps, Python and library versions |
-| `model.zip` | The trained model (SB3 format) |
+| `model.zip`, `model_replay_buffer.pkl` | The trained model (SB3 format) and its replay buffer |
+| `checkpoints/` | Model and replay buffer every 10,000 steps (`--checkpoint-freq`) |
 | `0.monitor.csv` | Reward, length and wall time of every episode |
 | `progress.csv`, `events.out.tfevents.*` | SB3 training metrics; view with `tensorboard --logdir runs` |
 | `train.log`, `training_progress.png` | Command-line runs only: console log and reward plot |

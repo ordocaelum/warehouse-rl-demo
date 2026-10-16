@@ -14,7 +14,6 @@ Keyboard shortcuts:
 from __future__ import annotations
 
 import math
-import os
 import queue
 import threading
 import time
@@ -33,9 +32,11 @@ except ImportError as exc:
 try:
     from stable_baselines3 import DQN
     from stable_baselines3.common.callbacks import BaseCallback as _BaseCallback
+    from stable_baselines3.common.callbacks import CallbackList
     from train_agent import (
         EXPLORATION_FRACTION, LEARNING_STARTS, RUNS_DIR, TARGET_UPDATE_INTERVAL,
-        attach_run_logger, find_latest_model, make_dqn, make_env, new_run_dir,
+        attach_run_logger, checkpoint_callback, find_latest_model, load_run_model,
+        make_dqn, make_env, new_run_dir, read_run_config, save_run_model,
         write_run_config,
     )
     _SB3_AVAILABLE = True
@@ -207,6 +208,13 @@ class Slider:
         """Clear the unsaved-change indicator once settings are applied."""
         self._changed = False
 
+    def set_value(self, v: float) -> None:
+        """Set the value programmatically (clamped to the slider's range)."""
+        v = max(self.min_val, min(self.max_val, float(v)))
+        self._value = float(round(v)) if self.is_int else v
+        self._frac = self._v2f(self._value)
+        self._changed = True
+
     # -- drawing --------------------------------------------------------------
     def draw(
         self,
@@ -311,12 +319,17 @@ class _Callback(_BaseCallback):
         stop_ev: threading.Event,
         pause_ev: threading.Event,
         episode_q: Optional[queue.Queue] = None,
+        save_req: Optional[threading.Event] = None,
+        save_fn=None,  # callable(model): saves; run on the training thread
     ) -> None:
         super().__init__(verbose=0)
         self._q       = metrics_q
         self._stop    = stop_ev
         self._pause   = pause_ev
         self._episode_q = episode_q  # receives each finished episode's return
+        self._save_req = save_req
+        self._save_fn  = save_fn
+        self._start_steps = 0  # num_timesteps when this learn() call began
         self.ep_rewards: List[float] = []
         self._avg: Optional[float] = None  # mean of the last 50 episodes
         self._ep_r    = 0.0
@@ -324,13 +337,25 @@ class _Callback(_BaseCallback):
         self._step_n  = 0
         self._t0      = time.time()
 
+    def _on_training_start(self) -> None:
+        self._start_steps = self.num_timesteps  # > 0 when resuming a saved model
+
+    def _save_if_requested(self) -> None:
+        # Saving happens here, on the training thread between steps, so the
+        # model is never written while it is being updated.
+        if self._save_req is not None and self._save_req.is_set():
+            self._save_req.clear()
+            self._save_fn(self.model)
+
     def _on_step(self) -> bool:  # type: ignore[override]
         # Honour stop signal – returning False terminates model.learn()
         if self._stop.is_set():
             return False
+        self._save_if_requested()
 
-        # Honour pause – sleep until resumed or stopped
+        # Honour pause – sleep until resumed or stopped (saving still works)
         while self._pause.is_set() and not self._stop.is_set():
+            self._save_if_requested()
             time.sleep(0.05)
         if self._stop.is_set():
             return False
@@ -370,6 +395,7 @@ class _Callback(_BaseCallback):
             "grid_size":   int(raw.grid_size),
             "delivery_zone": self.locals["infos"][0]["delivery_zone"],
             "total_steps": self.num_timesteps,
+            "run_steps":   self.num_timesteps - self._start_steps,
             "elapsed":     time.time() - self._t0,
         }
 
@@ -403,10 +429,14 @@ class _TrainingThread(threading.Thread):
         pause_ev: threading.Event,
         on_done,  # callable(thread), called from this thread when it finishes
         episode_q: Optional[queue.Queue] = None,
+        save_req: Optional[threading.Event] = None,
+        saved_q: Optional[queue.Queue] = None,
     ) -> None:
         super().__init__(daemon=True)
         self.params   = params
         self._episode_q = episode_q
+        self._save_req = save_req or threading.Event()
+        self._saved_q  = saved_q  # receives (thread, step) after each requested save
         self._q       = metrics_q
         self._stop    = stop_ev
         self._pause   = pause_ev
@@ -446,23 +476,29 @@ class _TrainingThread(threading.Thread):
             env = make_env(**env_config, seed=int(p["seed"]), monitor_dir=self.run_dir)
             self._env = env
 
-            model = make_dqn(env, **agent_config, seed=int(p["seed"]), verbose=0)
+            load_path = p.get("load_path")
+            if load_path:
+                # Resume the saved model: its weights, optimizer state,
+                # hyperparameters, step count and replay buffer. The agent
+                # sliders do not apply to a resumed run.
+                model = load_run_model(load_path, env, seed=int(p["seed"]))
+            else:
+                model = make_dqn(env, **agent_config, seed=int(p["seed"]), verbose=0)
             attach_run_logger(model, self.run_dir)
 
-            # Continue from an existing saved model if requested
-            load_path = p.get("load_path")
-            if load_path and os.path.exists(load_path + ".zip"):
-                loaded = DQN.load(load_path, env=env)
-                model.set_parameters(loaded.get_parameters())
-
             self.model = model
-            cb = _Callback(self._q, self._stop, self._pause, self._episode_q)
-            model.learn(total_timesteps=int(p["total_timesteps"]), callback=cb)
+            cb = _Callback(self._q, self._stop, self._pause, self._episode_q,
+                           save_req=self._save_req, save_fn=self._save)
+            model.learn(
+                total_timesteps=int(p["total_timesteps"]),
+                callback=CallbackList([cb, checkpoint_callback(self.run_dir)]),
+                reset_num_timesteps=not load_path,
+            )
             self.stopped = self._stop.is_set()
             # A stopped run is partial: never let it overwrite the saved model.
             # (It stays available to SAVE MODEL explicitly.)
             if not self.stopped:
-                model.save(self.run_dir / "model")
+                save_run_model(model, self.run_dir / "model")
 
         except Exception as exc:  # noqa: BLE001
             self.error = exc
@@ -470,6 +506,12 @@ class _TrainingThread(threading.Thread):
             if self._env is not None:
                 self._env.close()
             self._on_done(self)
+
+    def _save(self, model) -> None:
+        """Save on request from the UI. Runs on this thread, between steps."""
+        save_run_model(model, self.run_dir / "model")
+        if self._saved_q is not None:
+            self._saved_q.put((self, model.num_timesteps))
 
 
 # ---------------------------------------------------------------------------
@@ -494,6 +536,8 @@ class Dashboard:
         ("Step Cost",    0.01,   0.5, 0.05,  False,  False, None),
         ("Seed",            0,   999,    0,   True,  False, None),
     ]
+    # Environment parameter -> index of its slider in _SLIDER_SPECS
+    _ENV_SLIDERS = {"grid_size": 0, "num_packages": 1, "max_steps": 2, "step_cost": 8}
 
     def __init__(self) -> None:
         if not _SB3_AVAILABLE:
@@ -537,6 +581,10 @@ class Dashboard:
         # episode's return; new ones per run.
         self._metrics_slot = LatestSlot()
         self._episode_q: queue.Queue = queue.Queue()
+        # SAVE while training: the UI sets the event, the training thread
+        # saves at its next step and reports back on the queue.
+        self._save_req = threading.Event()
+        self._saved_q: queue.Queue = queue.Queue()
         # Finished training threads, posted by the thread itself and applied
         # by the UI thread, which is the only writer of the dashboard state.
         self._done_q: "queue.Queue[_TrainingThread]" = queue.Queue()
@@ -601,6 +649,7 @@ class Dashboard:
             if has_update:
                 self._metrics = m
             self._drain_episodes()
+            self._drain_saved()
 
             # Apply the result of a training thread that has finished
             self._apply_finished()
@@ -700,10 +749,15 @@ class Dashboard:
         self._btns["PAUSE"].label = "PAUSE"
         self._metrics_slot = LatestSlot()
         self._episode_q = queue.Queue()
+        self._save_req.clear()
         self._thread = _TrainingThread(
             params, self._metrics_slot, self._stop_ev, self._pause_ev,
             on_done=self._on_done, episode_q=self._episode_q,
+            save_req=self._save_req, saved_q=self._saved_q,
         )
+        if self._load_path:
+            self._model_status = f"Resuming {Path(self._load_path).parent.name}"
+            self._load_path = None  # one resume per LOAD
         self._state = "training"
         self._thread.start()
 
@@ -730,19 +784,45 @@ class Dashboard:
         self._btns["PAUSE"].label = "PAUSE"
 
     def _cmd_save(self) -> None:
-        if self._model is not None:
-            self._model.save(self._run_dir / "model")
+        if self._state in ("training", "paused"):
+            # The training thread saves at its next step (also while paused).
+            self._save_req.set()
+            self._model_status = "Saving..."
+        elif self._model is not None:
+            save_run_model(self._model, self._run_dir / "model")
             self._model_status = "Saved (run folder)"
         else:
             self._model_status = "No model to save yet"
 
+    def _drain_saved(self) -> None:
+        """Report saves the training thread made on request."""
+        while True:
+            try:
+                thread, step = self._saved_q.get_nowait()
+            except queue.Empty:
+                return
+            if thread is self._thread:
+                self._model_status = f"Saved at step {step:,}"
+
     def _cmd_load(self) -> None:
+        if self._state in ("training", "paused"):
+            return
         latest = find_latest_model(RUNS_DIR)
-        if latest is not None:
-            self._load_path    = str(latest.with_suffix(""))
-            self._model_status = f"Selected {latest.parent.name} (on START)"
-        else:
+        if latest is None:
             self._model_status = f"No saved model in {RUNS_DIR}/"
+            return
+        # Match the environment sliders to the saved run, so its model fits.
+        env = read_run_config(latest.parent).get("env", {})
+        sliders = {key: self._sliders[i] for key, i in self._ENV_SLIDERS.items()}
+        for key, s in sliders.items():
+            if key in env and not s.min_val <= env[key] <= s.max_val:
+                self._model_status = f"Can't load: {s.label} {env[key]} out of range"
+                return
+        for key, s in sliders.items():
+            if key in env:
+                s.set_value(env[key])
+        self._load_path = str(latest.with_suffix(""))
+        self._model_status = f"Selected {latest.parent.name} (on START)"
 
     def _drain_episodes(self) -> None:
         """Append newly finished episode returns to the graph's history."""
@@ -1010,7 +1090,7 @@ class Dashboard:
         # Progress bar when training
         if self._state in ("training", "paused") and self._thread:
             total = self._thread.params.get("total_timesteps", 1)
-            pct   = min(1.0, ts / max(total, 1))
+            pct   = min(1.0, m.get("run_steps", 0) / max(total, 1))
             bar_w = RIGHT_W - 24
             bar_h = 8
             bar_x, bar_y = x, y + 2
@@ -1117,15 +1197,15 @@ class Dashboard:
             disabled=not training,
         )
         self._btns["STOP"].draw( surf, self._fb, disabled=idle)
-        self._btns["SAVE"].draw( surf, self._fb, disabled=self._model is None)
-        self._btns["LOAD"].draw( surf, self._fb)
+        self._btns["SAVE"].draw( surf, self._fb, disabled=self._model is None and not training)
+        self._btns["LOAD"].draw( surf, self._fb, disabled=training)
         self._btns["RESET"].draw(surf, self._fb)
         self._btns["EXIT"].draw( surf, self._fb)
 
         # Status line centred along the bottom edge
         parts = []
         if training and self._thread:
-            ts    = self._metrics.get("total_steps", 0)
+            ts    = self._metrics.get("run_steps", 0)
             total = self._thread.params.get("total_timesteps", 1)
             pct   = min(100, int(ts / max(total, 1) * 100))
             parts.append(f"Progress: {pct}%  ({ts:,} steps)")
