@@ -13,6 +13,7 @@ from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
 from stable_baselines3.common.logger import configure as configure_sb3_logger
+from lab_metrics import collect_algorithm_metrics
 from warehouse_env import WarehouseEnv
 
 log = logging.getLogger("warehouse")
@@ -34,6 +35,7 @@ class RewardCallback(BaseCallback):
         self._episode_num = 0
         self._step_in_ep = 0
         self._stepping_episode = False  # S pressed: run to the episode's end
+        self._algo_metrics = {}  # latest value of each metric the algorithm logged
 
     def _on_step(self) -> bool:
         reward = self.locals.get("rewards", [0])[0]
@@ -48,17 +50,15 @@ class RewardCallback(BaseCallback):
             if len(self.episode_rewards) >= 50:
                 avg_reward = float(np.mean(window))
 
-            epsilon = 1.0
-            if hasattr(self.model, "exploration_rate"):
-                epsilon = float(self.model.exploration_rate)
-
             self._visualizer.put_update({
                 "episode":   self._episode_num,
                 "step":      self._step_in_ep,
                 "reward":    float(reward),
                 "ep_reward": float(self.current_reward),
                 "avg_reward": avg_reward,
-                "epsilon":   epsilon,
+                # Whatever the algorithm logs, by name (e.g. DQN's
+                # rollout/exploration_rate); nothing is assumed to exist.
+                "algo_metrics": dict(collect_algorithm_metrics(self.logger, self._algo_metrics)),
                 # Forwarded as the env reported it; the env itself is never
                 # read. On an episode's last step this is still that step,
                 # although the VecEnv has already reset the env.

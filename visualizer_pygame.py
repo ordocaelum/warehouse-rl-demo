@@ -12,6 +12,7 @@ import threading
 import time
 from typing import List, Optional
 
+from lab_metrics import display_metrics
 from latest_slot import LatestSlot
 
 try:
@@ -29,6 +30,9 @@ FPS_CAP = 60
 GRID_SIZE = 8
 # Completed-episode returns kept for the sparkline.
 REWARD_HISTORY_LEN = 200
+# Algorithm metrics shown in the panel (the first ones the algorithm logged;
+# one line keeps the layout of the Epsilon line it replaced).
+ALGO_LINES = 1
 
 # Colours (R, G, B)
 COL_BG           = (30,  30,  40)
@@ -59,7 +63,7 @@ class WarehouseVisualizer:
             "reward":       step_reward,
             "ep_reward":    cumulative_episode_reward,
             "avg_reward":   moving_average_reward,       # optional
-            "epsilon":      exploration_rate,            # optional
+            "algo_metrics": {"rollout/exploration_rate": 0.4, ...},  # optional
             # as the env reported it in info["render_state"]:
             "render_state": {"grid_size": 8, "agent_pos": [x, y],
                              "packages": [[x, y, delivered], ...],
@@ -99,7 +103,7 @@ class WarehouseVisualizer:
             "reward":    0.0,
             "ep_reward": 0.0,
             "avg_reward": None,
-            "epsilon":   1.0,
+            "algo_metrics": {},  # whatever the algorithm logs, by name
             "render_state": None,  # None until the first update
         }
 
@@ -342,10 +346,10 @@ class WarehouseVisualizer:
             screen.blit(surf, (x, y))
             y += surf.get_height() + 4
 
-        eps = state.get("epsilon", 1.0)
-        surf = font_medium.render(f"Epsilon:  {eps:>8.4f}", True, COL_TEXT)
-        screen.blit(surf, (x, y))
-        y += surf.get_height() + 4
+        for name, val in display_metrics(state.get("algo_metrics") or {}, ALGO_LINES):
+            surf = font_small.render(f"{name[:18]:<18} {val:>9}", True, COL_TEXT)
+            screen.blit(surf, (x, y))
+            y += surf.get_height() + 2
 
         # steps whose state was replaced before a frame could draw it
         surf = font_small.render(

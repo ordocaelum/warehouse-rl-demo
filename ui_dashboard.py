@@ -50,6 +50,7 @@ except ImportError:
         def __init__(self, verbose: int = 0) -> None:
             pass
 
+from lab_metrics import collect_algorithm_metrics, display_metrics
 from lab_params import AGENT_PARAMS, RUN_PARAMS, Param, by_target
 from lab_render import Renderer
 from latest_slot import LatestSlot
@@ -76,6 +77,7 @@ CENTER_W = SCREEN_W - LEFT_W - RIGHT_W   # 720 px
 CENTER_H = SCREEN_H - BOTTOM_H           # 665 px
 FPS_CAP  = 60
 GRAPH_EPISODES = 100  # episodes shown in the reward history graph
+ALGO_ROWS = 4         # algorithm metrics shown in the right panel
 
 # ---------------------------------------------------------------------------
 # Colour palette
@@ -329,6 +331,7 @@ class _Callback(_BaseCallback):
         self._start_steps = 0  # num_timesteps when this learn() call began
         self.ep_rewards: List[float] = []
         self._avg: Optional[float] = None  # mean of the last 50 episodes
+        self._algo_metrics: Dict[str, float] = {}  # latest of each logged metric
         self._ep_r    = 0.0
         self._ep_n    = 0
         self._step_n  = 0
@@ -362,15 +365,15 @@ class _Callback(_BaseCallback):
         self._ep_r   += reward
         self._step_n += 1
 
-        eps = float(getattr(self.model, "exploration_rate", 1.0))
-
         metrics: Dict = {
             "episode":     self._ep_n,
             "step":        self._step_n,
             "reward":      reward,
             "ep_reward":   self._ep_r,
             "avg_reward":  self._avg,
-            "epsilon":     eps,
+            # Whatever the algorithm logs, by name (e.g. DQN's
+            # rollout/exploration_rate); nothing is assumed to exist.
+            "algo_metrics": dict(collect_algorithm_metrics(self.logger, self._algo_metrics)),
             # Forwarded as the env reported it; the env itself is never read.
             # On an episode's last step this is still that step, although
             # the VecEnv has already reset the env.
@@ -982,7 +985,15 @@ class Dashboard:
             f"{avg:+.2f}" if avg is not None else "---",
             col="pos" if (avg or 0) >= 0 else "neg",
         )
-        row("Epsilon:", f"{m.get('epsilon', 1.0):.4f}")
+        y += 6
+
+        # -- Algorithm metrics, whichever the algorithm logs -----------------
+        hdr("=== ALGORITHM ===")
+        shown = display_metrics(m.get("algo_metrics") or {}, ALGO_ROWS)
+        for name, value in shown:
+            row(f"{name}:", value)
+        if not shown:
+            row("(none logged yet)", "")
         y += 6
 
         # -- Performance ------------------------------------------------------

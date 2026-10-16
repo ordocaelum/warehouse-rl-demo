@@ -21,6 +21,7 @@ warehouse-rl-demo/
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
 ├── lab_render.py          # Renderer interface: how the lab draws an environment
+├── lab_metrics.py         # Algorithm metrics, forwarded by name
 ├── lab_params.py          # Declarative schema for the dashboard's settings
 ├── warehouse_render.py    # Renderer for WarehouseEnv's render state
 ├── warehouse_lab.py       # WarehouseEnv's settings for the dashboard
@@ -102,6 +103,8 @@ whether the slider is logarithmic. The environment's settings come first
 
 - Training state, model status
 - Live episode number, step, reward, and 50-episode moving average
+- Algorithm metrics, whichever the agent logs, by name (for DQN: exploration
+  rate, learning rate, number of updates, loss)
 - Total timesteps, elapsed time, UI FPS
 - Training progress bar
 - Reward history graph (last 100 episodes) with 20-episode moving average
@@ -161,7 +164,8 @@ python train_agent.py --visualize
 
 A window opens showing:
 - The 8×8 warehouse grid with agent, packages, and delivery zone
-- Live metrics: episode, step, reward, 50-episode moving average, exploration rate
+- Live metrics: episode, step, reward, 50-episode moving average, and the
+  first metric the algorithm logs (for DQN, the exploration rate)
 - A reward history sparkline
 
 #### Visualizer Controls
