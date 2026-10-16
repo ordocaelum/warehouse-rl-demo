@@ -21,6 +21,7 @@ warehouse-rl-demo/
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
 ├── requirements.txt       # Python dependencies
+├── tests/                 # pytest suite
 ├── README.md              # This file
 └── .gitignore             # Git configuration
 ```
@@ -236,6 +237,19 @@ waiting, the agent's cell while carried, and the delivery zone once delivered.
 - **1-3** = Packages (numbers)
 - **D** = Delivery zones
 - **.** = Empty space
+
+## Running the Tests
+
+```bash
+pip install pytest
+pytest
+```
+
+The suite covers the environment contract (observation layout and bounds,
+each reward term, termination and truncation, Gymnasium's `check_env`),
+seeding and reproducibility, and the training callbacks' behaviour (final
+frame of each episode, episode stepping, reward history, STOP not
+overwriting a saved model). It trains only tiny models and runs in seconds.
 
 ## Reproducibility
 
