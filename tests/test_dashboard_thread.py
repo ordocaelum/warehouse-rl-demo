@@ -1,6 +1,5 @@
 """Behaviour of the dashboard's background training thread."""
 
-import os
 import queue
 import threading
 
@@ -13,13 +12,13 @@ PARAMS = dict(
 )
 
 
-def _run(stop_immediately):
+def _run(stop_immediately, run_dir):
     stop_ev = threading.Event()
     if stop_immediately:
         stop_ev.set()
     results = []
     thread = _TrainingThread(
-        dict(PARAMS), queue.Queue(), stop_ev, threading.Event(),
+        dict(PARAMS, run_dir=str(run_dir)), queue.Queue(), stop_ev, threading.Event(),
         on_done=lambda t: results.append((t.model, t.error)),
     )
     thread.start()
@@ -30,28 +29,26 @@ def _run(stop_immediately):
     return model
 
 
-def test_stop_does_not_overwrite_saved_model(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "warehouse_dqn_model.zip").write_bytes(b"previous model")
-
-    model = _run(stop_immediately=True)
-
+def test_stopped_run_saves_nothing(tmp_path):
+    model = _run(stop_immediately=True, run_dir=tmp_path / "run")
     assert model is not None  # the partial model is still offered for SAVE
-    assert (tmp_path / "warehouse_dqn_model.zip").read_bytes() == b"previous model"
+    assert not (tmp_path / "run" / "model.zip").exists()
 
 
-def test_completed_run_saves_model(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    _run(stop_immediately=False)
-    assert os.path.exists(tmp_path / "warehouse_dqn_model.zip")
+def test_completed_run_saves_model_and_logs_in_its_run_folder(tmp_path):
+    run = tmp_path / "run"
+    run.mkdir()
+    _run(stop_immediately=False, run_dir=run)
+    names = {p.name for p in run.iterdir()}
+    assert {"model.zip", "config.json", "0.monitor.csv", "progress.csv"} <= names
+    assert any(n.startswith("events.out.tfevents") for n in names)  # TensorBoard
 
 
-def test_dashboard_and_cli_build_identical_agents(tmp_path, monkeypatch):
+def test_dashboard_and_cli_build_identical_agents(tmp_path):
     """The same visible settings must give the same DQN from either entry point."""
     from train_agent import train_agent
 
-    monkeypatch.chdir(tmp_path)
-    ui_model = _run(stop_immediately=True)
+    ui_model = _run(stop_immediately=True, run_dir=tmp_path / "ui")
     cli_model, _, env = train_agent(
         total_timesteps=1,
         grid_size=PARAMS["grid_size"], num_packages=PARAMS["num_packages"],

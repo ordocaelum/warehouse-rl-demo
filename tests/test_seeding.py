@@ -72,7 +72,7 @@ def test_env_does_not_touch_global_numpy_rng():
     np.testing.assert_array_equal(np.random.random(5), expected)
 
 
-def test_seeded_training_runs_are_identical(tmp_path, monkeypatch):
+def test_seeded_training_runs_are_identical():
     """Two short DQN runs with the same seed end with identical weights.
 
     Covers env seeding, exploration and torch initialisation/updates on CPU.
@@ -80,8 +80,6 @@ def test_seeded_training_runs_are_identical(tmp_path, monkeypatch):
     """
     torch = pytest.importorskip("torch")
     from train_agent import train_agent
-
-    monkeypatch.chdir(tmp_path)  # train_agent saves into the CWD
 
     def run():
         model, callback, env = train_agent(total_timesteps=1500, seed=3)

@@ -1,12 +1,24 @@
 import argparse
 import functools
+import importlib.metadata
+import json
+import logging
+import platform
 import threading
 import time
+from pathlib import Path
+
 import numpy as np
 from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import configure as configure_sb3_logger
 from warehouse_env import WarehouseEnv
+
+log = logging.getLogger("warehouse")
+
+# Every training run writes its outputs to its own folder under here.
+RUNS_DIR = "runs"
 
 
 class RewardCallback(BaseCallback):
@@ -100,9 +112,54 @@ TARGET_UPDATE_INTERVAL = 500
 EXPLORATION_FRACTION = 0.2
 
 
+def new_run_dir(runs_dir=RUNS_DIR, grid_size: int = 8, num_packages: int = 1,
+                seed: int | None = None) -> Path:
+    """Create and return an empty folder for one training run's outputs."""
+    base = Path(runs_dir) / f"{time.strftime('%Y%m%d-%H%M%S')}_g{grid_size}_p{num_packages}_s{seed}"
+    path, n = base, 1
+    while path.exists():
+        path = base.with_name(f"{base.name}-{n}")
+        n += 1
+    path.mkdir(parents=True)
+    return path
+
+
+def write_run_config(run_dir, **config) -> None:
+    """Record a run's settings, and the library versions it ran with, in config.json."""
+    versions = {
+        name: importlib.metadata.version(name)
+        for name in ("gymnasium", "stable-baselines3", "torch", "numpy")
+    }
+    data = {**config, "python": platform.python_version(), "versions": versions}
+    (Path(run_dir) / "config.json").write_text(json.dumps(data, indent=2))
+
+
+def attach_run_logger(model, run_dir, stdout: bool = False) -> None:
+    """Send SB3's training metrics to run_dir: progress.csv, and TensorBoard if installed."""
+    formats = ["csv"]
+    try:
+        import tensorboard  # noqa: F401
+        formats.append("tensorboard")
+    except ImportError:
+        log.warning("tensorboard is not installed; logging metrics to CSV only")
+    if stdout:
+        formats.append("stdout")
+    model.set_logger(configure_sb3_logger(str(run_dir), formats))
+
+
+def find_latest_model(runs_dir=RUNS_DIR) -> Path | None:
+    """The most recently written runs/*/model.zip, or None."""
+    models = sorted(Path(runs_dir).glob("*/model.zip"), key=lambda p: p.stat().st_mtime)
+    return models[-1] if models else None
+
+
 def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
-             step_cost: float = 0.05, seed: int | None = None):
-    """The single-env DummyVecEnv (with Monitor) that both entry points train on."""
+             step_cost: float = 0.05, seed: int | None = None, monitor_dir=None):
+    """The single-env DummyVecEnv (with Monitor) that both entry points train on.
+
+    With ``monitor_dir``, Monitor writes per-episode reward/length/time to
+    ``monitor_dir/0.monitor.csv``.
+    """
     make_fn = functools.partial(
         WarehouseEnv,
         grid_size=grid_size,
@@ -110,7 +167,10 @@ def make_env(grid_size: int = 8, num_packages: int = 1, max_steps: int = 300,
         max_steps=max_steps,
         step_cost=step_cost,
     )
-    return make_vec_env(make_fn, n_envs=1, seed=seed)
+    return make_vec_env(
+        make_fn, n_envs=1, seed=seed,
+        monitor_dir=str(monitor_dir) if monitor_dir is not None else None,
+    )
 
 
 def make_dqn(env, learning_rate: float = 1e-3, buffer_size: int = 10000,
@@ -147,36 +207,51 @@ def train_agent(
     exploration_final: float = 0.1,
     exploration_fraction: float = EXPLORATION_FRACTION,
     seed: int | None = None,
+    run_dir=None,
 ):
     """Train DQN agent on warehouse environment.
 
     ``seed`` seeds the environment, the action space, numpy, Python's
     ``random`` and torch (via SB3).  ``None`` means an unseeded run.
-    """
 
-    env = make_env(grid_size, num_packages, max_steps, step_cost, seed=seed)
-    model = make_dqn(
-        env,
-        learning_rate=learning_rate,
-        buffer_size=buffer_size,
-        exploration_initial=exploration_initial,
-        exploration_final=exploration_final,
-        exploration_fraction=exploration_fraction,
-        seed=seed,
-        verbose=1,
+    Outputs go to ``run_dir`` (a new folder under ``runs/`` if not given):
+    config.json, model.zip, 0.monitor.csv, progress.csv and TensorBoard
+    event files.
+    """
+    env_config = dict(grid_size=grid_size, num_packages=num_packages,
+                      max_steps=max_steps, step_cost=step_cost)
+    agent_config = dict(learning_rate=learning_rate, buffer_size=buffer_size,
+                        exploration_initial=exploration_initial,
+                        exploration_final=exploration_final,
+                        exploration_fraction=exploration_fraction)
+    if run_dir is None:
+        run_dir = new_run_dir(grid_size=grid_size, num_packages=num_packages, seed=seed)
+    run_dir = Path(run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_run_config(
+        run_dir, env=env_config,
+        agent={**agent_config, "learning_starts": LEARNING_STARTS,
+               "target_update_interval": TARGET_UPDATE_INTERVAL},
+        seed=seed, total_timesteps=total_timesteps,
     )
+    log.info("Run directory: %s", run_dir)
+
+    env = make_env(**env_config, seed=seed, monitor_dir=run_dir)
+    model = make_dqn(env, **agent_config, seed=seed, verbose=1)
+    attach_run_logger(model, run_dir, stdout=True)
 
     # Train with callback
     callback = RewardCallback(visualizer=visualizer)
     model.learn(total_timesteps=total_timesteps, callback=callback)
 
-    # Save model
-    model.save("warehouse_dqn_model")
+    model.save(run_dir / "model")
+    log.info("Model saved to %s", run_dir / "model.zip")
 
     return model, callback, env
 
-def visualize_training(callback: RewardCallback):
-    """Plot training progress."""
+def visualize_training(callback: RewardCallback, path="training_progress.png",
+                       show: bool = True):
+    """Plot training progress to ``path`` (and show it unless ``show`` is False)."""
     import matplotlib.pyplot as plt  # only needed here; keeps the dashboard light
 
     plt.figure(figsize=(12, 5))
@@ -201,10 +276,12 @@ def visualize_training(callback: RewardCallback):
         plt.grid(True)
     
     plt.tight_layout()
-    plt.savefig("training_progress.png")
-    plt.show()
+    plt.savefig(path)
+    if show:
+        plt.show()
+    plt.close()
 
-def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3,
+def test_agent(model_path, num_episodes: int = 3,
                render: bool = True, seed: int | None = None, **env_kwargs):
     """Run the trained agent greedily and return each episode's total reward.
 
@@ -258,7 +335,17 @@ if __name__ == "__main__":
     parser.add_argument("--packages", type=int, default=1, help="Packages (default: 1)")
     parser.add_argument("--max-steps", type=int, default=300, help="Episode step limit (default: 300)")
     parser.add_argument("--step-cost", type=float, default=0.05, help="Per-step cost (default: 0.05)")
+    parser.add_argument(
+        "--runs-dir", default=RUNS_DIR,
+        help=f"Folder for run outputs; each run gets a subfolder (default: {RUNS_DIR})",
+    )
     args = parser.parse_args()
+
+    run_dir = new_run_dir(args.runs_dir, args.grid_size, args.packages, args.seed)
+    logging.basicConfig(
+        level=logging.INFO, format="%(message)s",
+        handlers=[logging.StreamHandler(), logging.FileHandler(run_dir / "train.log")],
+    )
 
     # The same environment configuration is used for training and testing.
     env_config = dict(
@@ -273,10 +360,11 @@ if __name__ == "__main__":
             total_timesteps=args.timesteps,
             visualizer=visualizer,
             seed=args.seed,
+            run_dir=run_dir,
             **env_config,
         )
 
-    print("Training agent...")
+    log.info("Training agent...")
     if args.visualize:
         from visualizer_pygame import WarehouseVisualizer
         visualizer = WarehouseVisualizer(grid_size=args.grid_size)
@@ -294,7 +382,7 @@ if __name__ == "__main__":
         # Closing the window early lets training continue without display.
         trainer = threading.Thread(target=train_in_background, daemon=True)
         trainer.start()
-        print("Live visualizer started. Controls: SPACE=pause  S=step  ↑↓=zoom  drag=pan  R=reset")
+        log.info("Live visualizer started. Controls: SPACE=pause  S=step  ↑↓=zoom  drag=pan  R=reset")
         visualizer.run()
         trainer.join()
         if "error" in result:
@@ -306,9 +394,10 @@ if __name__ == "__main__":
     env.close()
 
     # Visualize
-    print("Plotting training progress...")
-    visualize_training(callback)
+    log.info("Plotting training progress...")
+    visualize_training(callback, run_dir / "training_progress.png")
 
     # Test
-    print("Testing trained agent...")
-    test_agent(num_episodes=3, seed=args.seed, **env_config)
+    log.info("Testing trained agent...")
+    test_agent(run_dir / "model", num_episodes=3, seed=args.seed, **env_config)
+    log.info("Outputs are in %s", run_dir)

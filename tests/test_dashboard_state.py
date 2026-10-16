@@ -14,7 +14,6 @@ SEED_SLIDER = 9
 @pytest.fixture
 def dashboard(tmp_path, monkeypatch):
     monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
-    monkeypatch.chdir(tmp_path)  # completed runs save warehouse_dqn_model.zip
     from ui_dashboard import Dashboard
 
     d = Dashboard()

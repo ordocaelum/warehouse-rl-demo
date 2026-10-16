@@ -8,11 +8,10 @@ CONFIG = dict(grid_size=5, num_packages=2, max_steps=30)
 
 
 @pytest.fixture
-def saved_model(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)  # train_agent saves warehouse_dqn_model.zip here
-    _, _, env = ta.train_agent(total_timesteps=200, seed=0, **CONFIG)
+def saved_model(tmp_path):
+    _, _, env = ta.train_agent(total_timesteps=200, seed=0, run_dir=tmp_path, **CONFIG)
     env.close()
-    return str(tmp_path / "warehouse_dqn_model")
+    return tmp_path / "model"
 
 
 def test_evaluates_on_the_given_configuration(saved_model):

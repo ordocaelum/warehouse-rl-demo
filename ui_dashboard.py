@@ -18,6 +18,7 @@ import os
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -32,7 +33,11 @@ except ImportError as exc:
 try:
     from stable_baselines3 import DQN
     from stable_baselines3.common.callbacks import BaseCallback as _BaseCallback
-    from train_agent import make_dqn, make_env
+    from train_agent import (
+        EXPLORATION_FRACTION, LEARNING_STARTS, RUNS_DIR, TARGET_UPDATE_INTERVAL,
+        attach_run_logger, find_latest_model, make_dqn, make_env, new_run_dir,
+        write_run_config,
+    )
     _SB3_AVAILABLE = True
 except ImportError:
     DQN = None          # type: ignore[assignment,misc]
@@ -410,30 +415,39 @@ class _TrainingThread(threading.Thread):
         self._env     = None
         self.error: Optional[Exception] = None
         self.stopped  = False  # learn() returned because STOP was pressed
+        self.run_dir  = Path(params["run_dir"])
 
     def run(self) -> None:
         try:
             p = self.params
-            # Same construction as train_agent.py, so identical settings
-            # train identically from either entry point.
-            env = make_env(
+            self.run_dir.mkdir(parents=True, exist_ok=True)
+            env_config = dict(
                 grid_size    = int(p["grid_size"]),
                 num_packages = int(p["num_packages"]),
                 max_steps    = int(p["max_steps"]),
                 step_cost    = float(p["step_cost"]),
-                seed         = int(p["seed"]),
             )
-            self._env = env
-
-            model = make_dqn(
-                env,
+            agent_config = dict(
                 learning_rate       = float(p["learning_rate"]),
                 buffer_size         = int(p["buffer_size"]),
                 exploration_initial = float(p["exploration_initial"]),
                 exploration_final   = float(p["exploration_final"]),
-                seed                = int(p["seed"]),
-                verbose             = 0,
             )
+            write_run_config(
+                self.run_dir, env=env_config,
+                agent={**agent_config, "exploration_fraction": EXPLORATION_FRACTION,
+                       "learning_starts": LEARNING_STARTS,
+                       "target_update_interval": TARGET_UPDATE_INTERVAL},
+                seed=int(p["seed"]), total_timesteps=int(p["total_timesteps"]),
+                loaded_from=p.get("load_path"),
+            )
+            # Same construction as train_agent.py, so identical settings
+            # train identically from either entry point.
+            env = make_env(**env_config, seed=int(p["seed"]), monitor_dir=self.run_dir)
+            self._env = env
+
+            model = make_dqn(env, **agent_config, seed=int(p["seed"]), verbose=0)
+            attach_run_logger(model, self.run_dir)
 
             # Continue from an existing saved model if requested
             load_path = p.get("load_path")
@@ -448,7 +462,7 @@ class _TrainingThread(threading.Thread):
             # A stopped run is partial: never let it overwrite the saved model.
             # (It stays available to SAVE MODEL explicitly.)
             if not self.stopped:
-                model.save("warehouse_dqn_model")
+                model.save(self.run_dir / "model")
 
         except Exception as exc:  # noqa: BLE001
             self.error = exc
@@ -512,6 +526,7 @@ class Dashboard:
         self._model     = None
         self._model_status = "No model"
         self._load_path: Optional[str] = None
+        self._run_dir: Optional[Path] = None  # current run's output folder
         self._metrics: Dict = {}
         self._ep_rewards: List[float] = []
         self._fps       = 0
@@ -658,6 +673,7 @@ class Dashboard:
             "step_cost":           s[8].value,
             "seed":                int(s[9].value),
             "load_path":           self._load_path,
+            "run_dir":             None,  # set by _cmd_start
         }
 
     def _cmd_start(self) -> None:
@@ -672,6 +688,10 @@ class Dashboard:
         self._stop_ev.clear()
         self._pause_ev.clear()
         params = self._get_params()
+        self._run_dir = new_run_dir(
+            RUNS_DIR, params["grid_size"], params["num_packages"], params["seed"]
+        )
+        params["run_dir"] = str(self._run_dir)
         for s in self._sliders:
             s.mark_applied()
         self._ep_rewards = []
@@ -711,19 +731,18 @@ class Dashboard:
 
     def _cmd_save(self) -> None:
         if self._model is not None:
-            path = "warehouse_dqn_model"
-            self._model.save(path)
-            self._model_status = f"Saved: {path}.zip"
+            self._model.save(self._run_dir / "model")
+            self._model_status = "Saved (run folder)"
         else:
             self._model_status = "No model to save yet"
 
     def _cmd_load(self) -> None:
-        path = "warehouse_dqn_model"
-        if os.path.exists(path + ".zip"):
-            self._load_path    = path
-            self._model_status = f"Loaded: {path}.zip (applies on next START)"
+        latest = find_latest_model(RUNS_DIR)
+        if latest is not None:
+            self._load_path    = str(latest.with_suffix(""))
+            self._model_status = f"Selected {latest.parent.name} (on START)"
         else:
-            self._model_status = "File not found: warehouse_dqn_model.zip"
+            self._model_status = f"No saved model in {RUNS_DIR}/"
 
     def _drain_episodes(self) -> None:
         """Append newly finished episode returns to the graph's history."""
@@ -761,7 +780,7 @@ class Dashboard:
                 self._model_status = "Stopped (unsaved)"
             else:
                 self._state        = "done"
-                self._model_status = "Trained (unsaved)"
+                self._model_status = "Saved (run folder)"
 
     # -------------------------------------------------------------------------
     # Drawing helpers
@@ -957,6 +976,8 @@ class Dashboard:
         if len(ms) > 27:
             ms = ms[:24] + "..."
         row("Model:", ms)
+        if self._run_dir is not None:
+            row("Run:", self._run_dir.name[-27:])
         y += 6
 
         # -- Episode metrics --------------------------------------------------

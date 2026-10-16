@@ -75,7 +75,7 @@ Learning Rate: 1.0e-03
 - How to reach delivery zone
 - Core mechanics of pickup/dropoff
 
-**Checkpoint:** ✅ If average reward > +6, **SAVE MODEL**, then rename `warehouse_dqn_model.zip` to `model_stage1_8x8_1pkg.zip` (see [Saving Models](#saving-models))
+**Checkpoint:** ✅ If average reward > +6, **SAVE MODEL**, then copy the run's `model.zip` to `models/model_stage1_8x8_1pkg.zip` (see [Saving Models](#saving-models))
 
 ---
 
@@ -101,7 +101,7 @@ Learning Rate: 1.0e-03
 - Route optimization
 - Prioritization (which package first?)
 
-**Checkpoint:** ✅ If moving average stabilizes and stops degrading, **SAVE MODEL** and rename it to `model_stage2_10x10_2pkg.zip`
+**Checkpoint:** ✅ If moving average stabilizes and stops degrading, **SAVE MODEL** and copy it to `models/model_stage2_10x10_2pkg.zip`
 
 ---
 
@@ -127,7 +127,7 @@ Learning Rate: 1.0e-03
 - Larger grid navigation
 - How to handle tight time constraints
 
-**Checkpoint:** ✅ **SAVE MODEL** and rename it to `model_stage3_12x12_3pkg.zip`
+**Checkpoint:** ✅ **SAVE MODEL** and copy it to `models/model_stage3_12x12_3pkg.zip`
 
 ---
 
@@ -240,13 +240,19 @@ Starting at 8×8, 1 package:
 1. Watch training until it stabilizes (5-20 minutes)
 2. Check the reward graph for upward/stable trend
 3. Click **[SAVE MODEL]** button
-4. Model saves to `warehouse_dqn_model.zip`
+4. Model saves to `runs/<run>/model.zip`
+
+Every START gets its own folder under `runs/`, named after the time, grid size,
+package count and seed (e.g. `runs/20261016-153012_g8_p1_s0/`), so a new run
+never overwrites an earlier model. A run that completes saves its model
+automatically; a stopped run saves only when you click SAVE MODEL. The folder
+also holds `config.json` (the run's settings), `0.monitor.csv` (per-episode
+reward and length) and SB3's training metrics (`progress.csv` and TensorBoard
+files: `tensorboard --logdir runs`).
 
 **Naming convention (manual):**
 ```bash
-mv warehouse_dqn_model.zip models/model_stage1_8x8_1pkg.zip
-mv warehouse_dqn_model.zip models/model_stage2_10x10_2pkg.zip
-mv warehouse_dqn_model.zip models/model_stage3_12x12_3pkg.zip
+cp runs/<run>/model.zip models/model_stage1_8x8_1pkg.zip
 ```
 
 ### Loading Models

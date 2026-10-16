@@ -124,5 +124,6 @@ dmypy.json
 
 # RL-specific
 *.zip
+runs/
 warehouse_dqn_model.zip
 training_progress.png

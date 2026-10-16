@@ -24,6 +24,7 @@ warehouse-rl-demo/
 ├── requirements-dev.txt   # + pytest
 ├── requirements.lock      # every package pinned, all platforms
 ├── tests/                 # pytest suite
+├── runs/                  # one folder per training run (created on first run)
 ├── README.md              # This file
 └── .gitignore             # Git configuration
 ```
@@ -102,8 +103,8 @@ A 1300×780 window opens with three panels:
 | START TRAINING | — | Begin training with current slider settings |
 | PAUSE / RESUME | **SPACE** | Pause or resume the training loop |
 | STOP | — | Terminate training gracefully |
-| SAVE MODEL | **S** | Save model to `warehouse_dqn_model.zip` |
-| LOAD MODEL | — | Queue a saved model for the next training run |
+| SAVE MODEL | **S** | Save model to the current run's folder, `runs/<run>/model.zip` |
+| LOAD MODEL | — | Select the most recent saved model for the next training run |
 | RESET STATS | **R** | Clear reward history and metrics |
 | EXIT | **Q** / **ESC** | Stop training and close the window |
 
@@ -118,12 +119,26 @@ python train_agent.py
 This will:
 - Initialize a DQN agent with Q-learning principles
 - Train for 100,000 timesteps
-- Save the trained model as `warehouse_dqn_model.zip`
-- Generate `training_progress.png` showing reward curves
+- Save the trained model as `runs/<run>/model.zip`
+- Generate `runs/<run>/training_progress.png` showing reward curves
 - Test the agent on 3 episodes, on the same environment configuration it trained on
 
 Options: `--timesteps`, `--seed`, `--grid-size`, `--packages`, `--max-steps`,
-`--step-cost` (see `python train_agent.py --help`).
+`--step-cost`, `--runs-dir` (see `python train_agent.py --help`).
+
+### Run Folders
+
+Every training run, from the command line or the dashboard, writes to its own
+folder, `runs/<YYYYmmdd-HHMMSS>_g<grid>_p<packages>_s<seed>/`, so runs never
+overwrite each other:
+
+| File | Contents |
+|------|----------|
+| `config.json` | Environment and agent settings, seed, timesteps, Python and library versions |
+| `model.zip` | The trained model (SB3 format) |
+| `0.monitor.csv` | Reward, length and wall time of every episode |
+| `progress.csv`, `events.out.tfevents.*` | SB3 training metrics; view with `tensorboard --logdir runs` |
+| `train.log`, `training_progress.png` | Command-line runs only: console log and reward plot |
 
 ### Live Interactive Visualizer
 
@@ -180,7 +195,7 @@ Edit parameters in `train_agent.py`:
 train_agent(total_timesteps=100000)
 
 # Test on more episodes (pass the configuration the model was trained on)
-test_agent(num_episodes=5, grid_size=10, num_packages=2)
+test_agent("runs/<run>/model", num_episodes=5, grid_size=10, num_packages=2)
 ```
 
 Edit environment parameters via constructor arguments in `warehouse_env.py` or `train_agent.py`:
