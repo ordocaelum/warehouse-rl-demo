@@ -163,8 +163,9 @@ A window opens showing:
 
 #### Threading Architecture
 
-The visualizer runs in a **background daemon thread** so training continues on
-the main CPU thread without interruption.  Training produces one state update
+The visualizer's window runs on the **main thread** (pygame/SDL requires this
+on macOS) and training runs in a **background thread**, so neither waits on the
+other. Closing the window early lets training finish without display.  Training produces one state update
 per step, far more than the display can draw, so updates go through a
 keep-latest slot (`latest_slot.py`): training never waits, each frame draws the
 newest state, and the panel shows how many steps were not drawn. Episode

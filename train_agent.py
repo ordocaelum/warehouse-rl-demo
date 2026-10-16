@@ -1,5 +1,6 @@
 import argparse
 import functools
+import threading
 import time
 import numpy as np
 from stable_baselines3 import DQN
@@ -267,25 +268,42 @@ if __name__ == "__main__":
         step_cost=args.step_cost,
     )
 
-    visualizer = None
+    def train(visualizer=None):
+        return train_agent(
+            total_timesteps=args.timesteps,
+            visualizer=visualizer,
+            seed=args.seed,
+            **env_config,
+        )
+
+    print("Training agent...")
     if args.visualize:
         from visualizer_pygame import WarehouseVisualizer
         visualizer = WarehouseVisualizer(grid_size=args.grid_size)
-        visualizer.start()
-        print("Live visualizer started. Controls: SPACE=pause  S=step  ↑↓=zoom  drag=pan  R=reset")
+        result = {}
 
-    # Train agent
-    print("Training agent...")
-    model, callback, env = train_agent(
-        total_timesteps=args.timesteps,
-        visualizer=visualizer,
-        seed=args.seed,
-        **env_config,
-    )
+        def train_in_background():
+            try:
+                result["value"] = train(visualizer)
+            except BaseException as exc:  # re-raised on the main thread
+                result["error"] = exc
+            finally:
+                visualizer.stop()  # training finished: close the window
+
+        # pygame needs the main thread (macOS), so training runs beside it.
+        # Closing the window early lets training continue without display.
+        trainer = threading.Thread(target=train_in_background, daemon=True)
+        trainer.start()
+        print("Live visualizer started. Controls: SPACE=pause  S=step  ↑↓=zoom  drag=pan  R=reset")
+        visualizer.run()
+        trainer.join()
+        if "error" in result:
+            raise result["error"]
+        model, callback, env = result["value"]
+    else:
+        model, callback, env = train()
 
     env.close()
-    if visualizer is not None:
-        visualizer.stop()
 
     # Visualize
     print("Plotting training progress...")

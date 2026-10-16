@@ -1,9 +1,10 @@
 """
 PyGame-based live visualizer for warehouse RL training.
 
-Runs in a separate thread and receives state updates through a keep-latest slot
-(see latest_slot.py), so the display always shows the newest state.
-The training loop runs on the main thread (CPU) and pushes updates via put_update().
+The window runs on the main thread (pygame/SDL requires this on macOS) via
+run(); training runs in a background thread and pushes updates via
+put_update(). Updates go through a keep-latest slot (see latest_slot.py), so
+the display always shows the newest state.
 """
 
 import collections
@@ -54,9 +55,10 @@ class WarehouseVisualizer:
     Typical usage from a training script::
 
         viz = WarehouseVisualizer(grid_size=8)
-        viz.start()                  # opens window in background thread
+        # start training in a background thread, then on the main thread:
+        viz.run()                    # blocks until the window closes or stop()
 
-        # inside training callback:
+        # inside the training callback (training thread):
         viz.put_update({
             "episode":      episode_num,
             "step":         step_num,
@@ -74,7 +76,7 @@ class WarehouseVisualizer:
         # once per finished episode:
         viz.put_episode_reward(episode_return)
 
-        viz.stop()                   # signal visualizer to close
+        viz.stop()                   # from any thread: close the window
     """
 
     def __init__(self, grid_size: int = GRID_SIZE):
@@ -88,7 +90,7 @@ class WarehouseVisualizer:
         # Newest per-step update; training never waits on the display.
         self._updates = LatestSlot()
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._running = False  # True while run() has the window open
 
         # State mirrored from the training loop
         self._state = {
@@ -123,16 +125,9 @@ class WarehouseVisualizer:
     # Public API
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
-        """Start the visualizer in a background daemon thread."""
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-
     def stop(self) -> None:
-        """Signal the visualizer to shut down and wait for its thread."""
+        """Ask run() to close the window and return. Safe from any thread."""
         self._stop_event.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=3)
 
     def put_update(self, state: dict) -> None:
         """
@@ -167,13 +162,19 @@ class WarehouseVisualizer:
 
     def is_running(self) -> bool:
         """Return True if the visualizer window is still open."""
-        return self._thread is not None and self._thread.is_alive()
+        return self._running
 
     # ------------------------------------------------------------------
-    # Internal rendering loop (runs in background thread)
+    # Rendering loop (call on the main thread)
     # ------------------------------------------------------------------
 
-    def _run(self) -> None:
+    def run(self) -> None:
+        """Open the window and render until it is closed or stop() is called.
+
+        Call this on the main thread: SDL's window and event handling must
+        run there on macOS. Training should run in another thread.
+        """
+        self._running = True
         pygame.init()
         cell = int(CELL_SIZE * self._zoom)
         grid_px = cell * self.grid_size
@@ -251,6 +252,7 @@ class WarehouseVisualizer:
                 clock.tick(FPS_CAP)
 
         finally:
+            self._running = False
             pygame.quit()
 
     # ------------------------------------------------------------------
