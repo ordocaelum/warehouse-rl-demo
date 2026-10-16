@@ -20,7 +20,9 @@ warehouse-rl-demo/
 ├── train_agent.py         # Training script with DQN agent
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
-├── requirements.txt       # Python dependencies
+├── requirements.txt       # Python dependencies (pinned)
+├── requirements-dev.txt   # + pytest
+├── requirements.lock      # every package pinned, all platforms
 ├── tests/                 # pytest suite
 ├── README.md              # This file
 └── .gitignore             # Git configuration
@@ -42,8 +44,13 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.lock
 ```
+
+`requirements.lock` pins every package, including transitive ones, for all
+platforms; it is what the test suite was run with. `requirements.txt` pins
+only the direct dependencies. Use Python 3.12 or 3.13: numpy 2.5 needs 3.12+,
+and pygame 2.6.1 has no Python 3.14 wheels.
 
 ## Usage
 
@@ -275,7 +282,7 @@ waiting, the agent's cell while carried, and the delivery zone once delivered.
 ## Running the Tests
 
 ```bash
-pip install pytest
+pip install -r requirements-dev.txt   # or requirements.lock, which includes pytest
 pytest
 ```
 
@@ -306,7 +313,9 @@ What is **not** guaranteed:
 - **GPU training.** Some CUDA kernels are nondeterministic; seeding does not
   make GPU runs bit-identical.  SB3 uses a GPU automatically when torch can
   see one (`device="auto"`); the determinism test above runs on the CPU.
-- **Different installs.** Results depend on the installed library versions.
+- **Different installs.** Results depend on the installed library versions,
+  including SB3's hyperparameter defaults. Install from `requirements.lock`
+  to match the tested versions exactly.
 
 ## DQN Agent Parameters
 
@@ -344,13 +353,16 @@ After training, you'll see:
 
 ## Requirements
 
-- Python 3.8+
-- gymnasium (Gym successor)
-- stable-baselines3
-- numpy
-- matplotlib
-- torch (installed with stable-baselines3)
-- pygame >= 2.1.0 (for the live visualizer)
+- Python 3.12 or 3.13 (tested on 3.13.2)
+- gymnasium 1.4.0 (Gym successor)
+- stable-baselines3 2.9.0
+- numpy 2.5.4
+- matplotlib 3.11.2
+- torch 2.14.1
+- pygame 2.6.1 (for the dashboard and the live visualizer)
+- tensorboard 2.21.0
+
+Exact versions of everything else are in `requirements.lock`.
 
 ## License
 
