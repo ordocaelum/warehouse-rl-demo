@@ -132,7 +132,7 @@ A window opens showing:
 | Key / Action         | Effect                                  |
 |----------------------|-----------------------------------------|
 | **SPACE**            | Pause / resume training                 |
-| **S** (while paused) | Step through one episode                |
+| **S** (while paused) | Run to the end of the current episode, then pause on its final frame |
 | **↑ / ↓**            | Zoom in / out                           |
 | **Mouse wheel**      | Zoom in / out                           |
 | **Mouse drag**       | Pan the grid                            |

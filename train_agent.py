@@ -19,6 +19,7 @@ class RewardCallback(BaseCallback):
         self._visualizer = visualizer
         self._episode_num = 0
         self._step_in_ep = 0
+        self._stepping_episode = False  # S pressed: run to the episode's end
 
     def _on_step(self) -> bool:
         reward = self.locals.get("rewards", [0])[0]
@@ -66,11 +67,17 @@ class RewardCallback(BaseCallback):
                 "grid_size": int(raw_env.grid_size),
             })
 
-            # Honour pause/resume from visualizer; bail out if it stops running
-            while self._visualizer.is_paused() and self._visualizer.is_running():
-                if self._visualizer.consume_step_request():
-                    break  # step one full episode
-                time.sleep(0.05)
+            # Honour pause/resume from visualizer; bail out if it stops running.
+            # S while paused runs to the end of the current episode, then
+            # pauses again on that episode's final frame.
+            if self._stepping_episode and done:
+                self._stepping_episode = False
+            if not self._stepping_episode:
+                while self._visualizer.is_paused() and self._visualizer.is_running():
+                    if self._visualizer.consume_step_request():
+                        self._stepping_episode = True
+                        break
+                    time.sleep(0.05)
 
         # End of episode bookkeeping
         if done:
