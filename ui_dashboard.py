@@ -367,23 +367,6 @@ class _Callback(_BaseCallback):
 
         eps = float(getattr(self.model, "exploration_rate", 1.0))
 
-        # Unwrap VecEnv / Monitor wrappers to reach the raw WarehouseEnv
-        raw = self.training_env.envs[0]
-        while hasattr(raw, "env"):
-            raw = raw.env
-
-        # On the last step of an episode the VecEnv has already reset the
-        # env, so draw the final frame from the terminal observation.
-        if done:
-            terminal_obs = self.locals["infos"][0]["terminal_observation"]
-            env_state = WarehouseEnv.state_from_observation(terminal_obs)
-        else:
-            env_state = {
-                "agent_pos": raw.agent_pos.tolist(),
-                "packages":  [list(p) for p in raw.packages],
-                "carrying":  int(raw.carrying),
-            }
-
         metrics: Dict = {
             "episode":     self._ep_n,
             "step":        self._step_n,
@@ -391,9 +374,10 @@ class _Callback(_BaseCallback):
             "ep_reward":   self._ep_r,
             "avg_reward":  self._avg,
             "epsilon":     eps,
-            **env_state,
-            "grid_size":   int(raw.grid_size),
-            "delivery_zone": self.locals["infos"][0]["delivery_zone"],
+            # Forwarded as the env reported it; the env itself is never read.
+            # On an episode's last step this is still that step, although
+            # the VecEnv has already reset the env.
+            "render_state": self.locals["infos"][0].get("render_state"),
             "total_steps": self.num_timesteps,
             "run_steps":   self.num_timesteps - self._start_steps,
             "elapsed":     time.time() - self._t0,
@@ -928,7 +912,8 @@ class Dashboard:
     def _draw_center(self) -> None:
         surf = self.screen
         m    = self._metrics
-        gs   = int(m.get("grid_size", int(self._sliders[0].value)))
+        rs   = m.get("render_state") or {}  # as pushed by the env
+        gs   = int(rs.get("grid_size", int(self._sliders[0].value)))
 
         # Dynamic cell size to fill the available area
         cell = min((CENTER_W - 40) // max(gs, 1), (CENTER_H - 60) // max(gs, 1))
@@ -940,7 +925,7 @@ class Dashboard:
 
         # Delivery zone, as reported by the env (before the first update,
         # the env's default bottom-right cell)
-        dzx, dzy = m.get("delivery_zone") or (gs - 1, gs - 1)
+        dzx, dzy = rs.get("delivery_zone") or (gs - 1, gs - 1)
         pygame.draw.rect(surf, _c("delivery"), (ox + dzx * cell, oy + dzy * cell, cell, cell))
         dl = self._fs.render("D", True, _c("delivery_lbl"))
         surf.blit(
@@ -960,7 +945,7 @@ class Dashboard:
             pygame.draw.line(surf, _c("grid_line"), (ox, y), (ox + gw, y))
 
         # Packages
-        for pkg in m.get("packages", []):
+        for pkg in rs.get("packages", []):
             px, py, delivered = int(pkg[0]), int(pkg[1]), bool(pkg[2])
             col = _c("pkg_done") if delivered else _c("pkg_pend")
             mg  = max(3, cell // 6)
@@ -971,8 +956,8 @@ class Dashboard:
             )
 
         # Agent
-        ap      = m.get("agent_pos", [0, 0])
-        carrying = m.get("carrying", -1)
+        ap      = rs.get("agent_pos", [0, 0])
+        carrying = rs.get("carrying", -1)
         ax, ay  = int(ap[0]), int(ap[1])
         acol    = _c("agent_carry") if carrying >= 0 else _c("agent")
         rad     = max(4, cell // 3)

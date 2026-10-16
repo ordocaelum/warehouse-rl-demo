@@ -24,8 +24,9 @@ def test_run_on_main_thread_while_training_thread_feeds_it(monkeypatch):
 
     def producer():
         for step in range(2000):
-            viz.put_update({"step": step, "agent_pos": [step % 5, 0], "packages": [[2, 2, 0]],
-                            "carrying": -1, "grid_size": 5, "delivery_zone": [4, 4]})
+            viz.put_update({"step": step, "render_state": {
+                "agent_pos": [step % 5, 0], "packages": [[2, 2, 0]],
+                "carrying": -1, "grid_size": 5, "delivery_zone": [4, 4]}})
             if step % 500 == 0:
                 viz.put_episode_reward(float(step))
         while not render_threads:  # make sure at least one frame was drawn

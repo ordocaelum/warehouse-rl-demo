@@ -271,6 +271,12 @@ waiting, the agent's cell while carried, and the delivery zone once delivered.
 | `invalid_action` | (`step` only) the action changed nothing: walking into a wall, picking up with nothing to pick up, dropping off empty-handed or away from the zone |
 | `is_success` | (`step` only) every package has been delivered. SB3 reports it as `rollout/success_rate` |
 | `termination_reason` | (`step` only) `"all_delivered"`, `"max_steps"` or `None`. A delivery on the last allowed step is `"all_delivered"` |
+| `render_state` | Plain-data snapshot of what to draw (`get_render_state()`): `grid_size`, `agent_pos`, `carrying`, `packages` (`[x, y, delivered]` each), `delivery_zone` |
+
+The dashboard and the visualizer draw only `render_state`. Their training
+callbacks forward it from `info` and never read the environment object, so
+they work unchanged with a `SubprocVecEnv`. On the last step of an episode it
+still shows that step, although the vectorised env has already reset.
 
 ### Reward Structure
 

@@ -66,11 +66,11 @@ class WarehouseVisualizer:
             "ep_reward":    cumulative_episode_reward,
             "avg_reward":   moving_average_reward,       # optional
             "epsilon":      exploration_rate,            # optional
-            "agent_pos":    [x, y],
-            "packages":     [[x, y, delivered], ...],
-            "carrying":     -1 or package_index,
-            "grid_size":    8,
-            "delivery_zone": [x, y],
+            # as the env reported it in info["render_state"]:
+            "render_state": {"grid_size": 8, "agent_pos": [x, y],
+                             "packages": [[x, y, delivered], ...],
+                             "carrying": -1 or package_index,
+                             "delivery_zone": [x, y]},
         })
 
         # once per finished episode:
@@ -100,11 +100,7 @@ class WarehouseVisualizer:
             "ep_reward": 0.0,
             "avg_reward": None,
             "epsilon":   1.0,
-            "agent_pos": [0, 0],
-            "packages":  [],
-            "carrying":  -1,
-            "grid_size": grid_size,
-            "delivery_zone": None,  # None until the first update: bottom-right
+            "render_state": None,  # None until the first update
         }
 
         # Visualizer-local mutable properties
@@ -285,7 +281,7 @@ class WarehouseVisualizer:
 
     def _draw_grid(self, screen: "pygame.Surface", cell: int, grid_px: int) -> None:
         """Render the grid, delivery zone, packages, and agent."""
-        state = self._state
+        state = self._state.get("render_state") or {}  # as pushed by the env
         packages  = state.get("packages",  [])
         agent_pos = state.get("agent_pos", [0, 0])
         carrying  = state.get("carrying",  -1)
@@ -410,14 +406,15 @@ class WarehouseVisualizer:
         # carrying status
         y += 8
         label("== AGENT ==", font=font_medium)
-        carrying = state.get("carrying", -1)
+        render_state = state.get("render_state") or {}
+        carrying = render_state.get("carrying", -1)
         c_text   = "Carrying: YES" if carrying >= 0 else "Carrying: no"
         c_colour = COL_AGENT_CARRY if carrying >= 0 else COL_TEXT
         surf = font_medium.render(c_text, True, c_colour)
         screen.blit(surf, (x, y))
         y += surf.get_height() + 4
 
-        pkgs = state.get("packages", [])
+        pkgs = render_state.get("packages", [])
         delivered = sum(1 for p in pkgs if p[2])
         surf = font_medium.render(
             f"Packages: {delivered}/{len(pkgs)}", True, COL_TEXT

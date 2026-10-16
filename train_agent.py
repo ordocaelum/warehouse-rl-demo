@@ -43,24 +43,6 @@ class RewardCallback(BaseCallback):
 
         # Push live update to visualizer (non-blocking)
         if self._visualizer is not None:
-            env = self.training_env.envs[0]
-            # Unwrap Monitor/VecEnv layers to reach the raw WarehouseEnv
-            raw_env = env
-            while hasattr(raw_env, "env"):
-                raw_env = raw_env.env
-
-            # On the last step of an episode the VecEnv has already reset the
-            # env, so draw the final frame from the terminal observation.
-            if done:
-                terminal_obs = self.locals["infos"][0]["terminal_observation"]
-                env_state = WarehouseEnv.state_from_observation(terminal_obs)
-            else:
-                env_state = {
-                    "agent_pos": raw_env.agent_pos.tolist(),
-                    "packages":  [list(p) for p in raw_env.packages],
-                    "carrying":  int(raw_env.carrying),
-                }
-
             avg_reward = None
             window = self.episode_rewards[-50:]
             if len(self.episode_rewards) >= 50:
@@ -77,9 +59,10 @@ class RewardCallback(BaseCallback):
                 "ep_reward": float(self.current_reward),
                 "avg_reward": avg_reward,
                 "epsilon":   epsilon,
-                **env_state,
-                "grid_size": int(raw_env.grid_size),
-                "delivery_zone": self.locals["infos"][0]["delivery_zone"],
+                # Forwarded as the env reported it; the env itself is never
+                # read. On an episode's last step this is still that step,
+                # although the VecEnv has already reset the env.
+                "render_state": self.locals["infos"][0].get("render_state"),
             })
 
             # Honour pause/resume from visualizer; bail out if it stops running.
