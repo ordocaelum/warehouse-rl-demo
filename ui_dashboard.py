@@ -403,6 +403,7 @@ class _TrainingThread(threading.Thread):
         self._pause   = pause_ev
         self._on_done = on_done
         self.model    = None
+        self._env     = None
         self.error: Optional[Exception] = None
 
     def run(self) -> None:
@@ -416,6 +417,7 @@ class _TrainingThread(threading.Thread):
                 step_cost    = float(p["step_cost"]),
             )
             env = make_vec_env(make_fn, n_envs=1, seed=int(p["seed"]))
+            self._env = env
 
             model = DQN(
                 "MlpPolicy",
@@ -448,6 +450,8 @@ class _TrainingThread(threading.Thread):
         except Exception as exc:  # noqa: BLE001
             self.error = exc
         finally:
+            if self._env is not None:
+                self._env.close()
             self._on_done(self.model, self.error)
 
 

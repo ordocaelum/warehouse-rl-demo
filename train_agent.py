@@ -176,7 +176,7 @@ def visualize_training(callback: RewardCallback):
 
 def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3):
     """Test trained agent."""
-    env = WarehouseEnv()
+    env = WarehouseEnv(render_mode="human")  # prints the grid after every step
     model = DQN.load(model_path)
     
     for episode in range(num_episodes):
@@ -190,9 +190,9 @@ def test_agent(model_path: str = "warehouse_dqn_model", num_episodes: int = 3):
             obs, reward, terminated, truncated, _ = env.step(action)
             total_reward += reward
             done = terminated or truncated
-            env.render()
         
         print(f"Episode {episode + 1} Total Reward: {total_reward}")
+    env.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train warehouse DQN agent")
@@ -225,6 +225,7 @@ if __name__ == "__main__":
         seed=args.seed,
     )
 
+    env.close()
     if visualizer is not None:
         visualizer.stop()
 

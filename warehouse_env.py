@@ -24,11 +24,19 @@ class WarehouseEnv(gym.Env):
     - Reward: +10 for delivery, +1 for pickup, -0.05 per step
     """
     
-    metadata = {"render_modes": ["human"]}
+    # "human" prints the grid after every reset/step; "ansi" returns it from render().
+    metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}
     
     def __init__(self, grid_size: int = 8, num_packages: int = 1,
-                 max_steps: int = 300, step_cost: float = 0.05):
+                 max_steps: int = 300, step_cost: float = 0.05,
+                 render_mode: str | None = None):
         super().__init__()
+        if render_mode is not None and render_mode not in self.metadata["render_modes"]:
+            raise ValueError(
+                f"render_mode must be one of {self.metadata['render_modes']} or None, "
+                f"got {render_mode!r}"
+            )
+        self.render_mode = render_mode
         # Packages are placed strictly inside the border, which needs a grid
         # of at least 3x3; with no packages an episode would end immediately.
         grid_size = _require_int("grid_size", grid_size, 3)
@@ -86,8 +94,12 @@ class WarehouseEnv(gym.Env):
             for pkg in undelivered
         ))
 
-    def _action_mask(self) -> np.ndarray:
-        """Which of the 6 actions would change the state right now."""
+    def action_masks(self) -> np.ndarray:
+        """Which of the 6 actions would change the state right now.
+
+        Same convention as sb3-contrib's MaskablePPO.  Masked actions are
+        still allowed; they cost the step cost and do nothing.
+        """
         x, y = int(self.agent_pos[0]), int(self.agent_pos[1])
         last = self.grid_size - 1
         can_pickup = self.carrying == -1 and any(
@@ -103,6 +115,7 @@ class WarehouseEnv(gym.Env):
             "delivered": sum(1 for pkg in self.packages if pkg[2]),
             "num_packages": self.num_packages,
             "delivery_zone": [int(c) for c in self.delivery_zone],
+            "action_mask": self.action_masks(),
         }
 
     def _get_obs(self) -> np.ndarray:
@@ -144,6 +157,8 @@ class WarehouseEnv(gym.Env):
         self._init_packages()
         self.step_count = 0
         self.last_distance = self._get_nearest_package_distance()
+        if self.render_mode == "human":
+            self.render()
         return self._get_obs(), self._get_info()
     
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
@@ -155,6 +170,7 @@ class WarehouseEnv(gym.Env):
           delivered          packages delivered so far
           num_packages       packages in the episode
           delivery_zone      [x, y] of the delivery zone
+          action_mask        action_masks() for the *new* state
           invalid_action     True if the action changed nothing (walking into
                              a wall, pickup with nothing to pick up, dropoff
                              while empty-handed or away from the zone)
@@ -163,7 +179,7 @@ class WarehouseEnv(gym.Env):
                              on the last allowed step reports "all_delivered"
         """
         a = int(action)
-        invalid_action = not (0 <= a < 6 and self._action_mask()[a])
+        invalid_action = not (0 <= a < 6 and self.action_masks()[a])
         reward = -self.step_cost  # Configurable step cost
         
         # Movement actions
@@ -218,10 +234,19 @@ class WarehouseEnv(gym.Env):
         info["termination_reason"] = (
             "all_delivered" if terminated else "max_steps" if truncated else None
         )
+        if self.render_mode == "human":
+            self.render()
         return self._get_obs(), float(reward), terminated, truncated, info
     
     def render(self):
-        """Simple text rendering."""
+        """Text rendering: printed in "human" mode, returned as a str in "ansi"."""
+        if self.render_mode is None:
+            gym.logger.warn(
+                "render() called without a render_mode; pass "
+                "render_mode='human' or 'ansi' to WarehouseEnv(...)."
+            )
+            return None
+
         grid = [['.' for _ in range(self.grid_size)] for _ in range(self.grid_size)]
         
         # Mark delivery zone
@@ -235,6 +260,20 @@ class WarehouseEnv(gym.Env):
         # Mark agent
         grid[self.agent_pos[1]][self.agent_pos[0]] = 'A' if self.carrying == -1 else 'a'
         
-        for row in grid:
-            print(''.join(row))
-        print(f"Step: {self.step_count}, Carrying: {self.carrying}, Delivered: {sum(p[2] for p in self.packages)}\n")
+        lines = [''.join(row) for row in grid]
+        lines.append(
+            f"Step: {self.step_count}, Carrying: {self.carrying}, "
+            f"Delivered: {sum(p[2] for p in self.packages)}\n"
+        )
+        text = "\n".join(lines)
+        if self.render_mode == "ansi":
+            return text
+        print(text)
+        return None
+
+
+# Registered so that gym.make("Warehouse-v0", grid_size=..., render_mode=...)
+# works once this module is imported.  No max_episode_steps: the env truncates
+# itself at max_steps.
+if "Warehouse-v0" not in gym.registry:
+    gym.register(id="Warehouse-v0", entry_point="warehouse_env:WarehouseEnv")

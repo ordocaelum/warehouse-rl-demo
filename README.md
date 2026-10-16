@@ -191,6 +191,25 @@ train_agent(
 
 ## Environment Details
 
+### Creating the Environment
+
+```python
+import gymnasium as gym
+import warehouse_env  # registers "Warehouse-v0"
+
+env = gym.make("Warehouse-v0", grid_size=8, num_packages=1, render_mode="ansi")
+# or directly: warehouse_env.WarehouseEnv(grid_size=8, render_mode="human")
+```
+
+`render_mode="human"` prints the grid after every `reset()`/`step()`;
+`render_mode="ansi"` makes `render()` return it as a string. The env truncates
+episodes itself at `max_steps`, so no `TimeLimit` wrapper is registered.
+
+`env.unwrapped.action_masks()` returns which of the six actions would change
+the state (the convention sb3-contrib's `MaskablePPO` uses); the same mask is
+in `info["action_mask"]`. DQN does not use it: masked actions remain legal
+no-ops that cost the step cost.
+
 ### Action Space
 
 | Action | Description |
