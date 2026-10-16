@@ -20,6 +20,8 @@ warehouse-rl-demo/
 ├── train_agent.py         # Training script with DQN agent
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
+├── lab_render.py          # Renderer interface: how the lab draws an environment
+├── warehouse_render.py    # Renderer for WarehouseEnv's render state
 ├── requirements.txt       # Python dependencies (pinned)
 ├── requirements-dev.txt   # + pytest
 ├── requirements.lock      # every package pinned, all platforms

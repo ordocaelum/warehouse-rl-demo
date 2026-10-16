@@ -50,7 +50,9 @@ except ImportError:
         def __init__(self, verbose: int = 0) -> None:
             pass
 
+from lab_render import Renderer
 from latest_slot import LatestSlot
+from warehouse_render import WarehouseRenderer
 
 try:
     from warehouse_env import WarehouseEnv
@@ -95,13 +97,6 @@ _PAL: Dict[str, Tuple[int, int, int]] = {
     "btn_start":    ( 40, 125,  68),
     "btn_stop":     (160,  42,  42),
     "btn_save":     ( 40, 115, 152),
-    "grid_line":    ( 50,  57,  84),
-    "delivery":     ( 50, 135,  58),
-    "delivery_lbl": (120, 215, 120),
-    "agent":        (218, 218, 225),
-    "agent_carry":  (255, 200,  48),
-    "pkg_pend":     ( 62, 108, 208),
-    "pkg_done":     ( 62, 182,  80),
     "graph_raw":    ( 90, 150, 232),
     "graph_avg":    (235, 162,  50),
     "graph_bg":     ( 18,  22,  38),
@@ -523,7 +518,7 @@ class Dashboard:
     # Environment parameter -> index of its slider in _SLIDER_SPECS
     _ENV_SLIDERS = {"grid_size": 0, "num_packages": 1, "max_steps": 2, "step_cost": 8}
 
-    def __init__(self) -> None:
+    def __init__(self, renderer: Optional[Renderer] = None) -> None:
         if not _SB3_AVAILABLE:
             raise SystemExit(
                 "stable-baselines3 is required.  "
@@ -534,6 +529,9 @@ class Dashboard:
                 "warehouse_env.py not found.  "
                 "Run this script from the project directory."
             )
+
+        # Draws the environment in the centre panel (see lab_render.py)
+        self._renderer = renderer if renderer is not None else WarehouseRenderer()
 
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
@@ -907,65 +905,17 @@ class Dashboard:
             surf.blit(note, (8, y))
 
     # -------------------------------------------------------------------------
-    # Center: live warehouse grid
+    # Center: the environment, drawn by its renderer
     # -------------------------------------------------------------------------
     def _draw_center(self) -> None:
         surf = self.screen
         m    = self._metrics
-        rs   = m.get("render_state") or {}  # as pushed by the env
-        gs   = int(rs.get("grid_size", int(self._sliders[0].value)))
+        area = pygame.Rect(LEFT_W + 20, 20, CENTER_W - 40, CENTER_H - 60)
+        # The render state as the env pushed it; None before the first update.
+        drawn = self._renderer.draw(surf, area, m.get("render_state")) or area
+        ox, oy, gw, gh = drawn
 
-        # Dynamic cell size to fill the available area
-        cell = min((CENTER_W - 40) // max(gs, 1), (CENTER_H - 60) // max(gs, 1))
-        cell = max(16, cell)
-        gw   = cell * gs
-        gh   = cell * gs
-        ox   = LEFT_W + (CENTER_W - gw) // 2
-        oy   = (CENTER_H - gh) // 2 - 10
-
-        # Delivery zone, as reported by the env (before the first update,
-        # the env's default bottom-right cell)
-        dzx, dzy = rs.get("delivery_zone") or (gs - 1, gs - 1)
-        pygame.draw.rect(surf, _c("delivery"), (ox + dzx * cell, oy + dzy * cell, cell, cell))
-        dl = self._fs.render("D", True, _c("delivery_lbl"))
-        surf.blit(
-            dl,
-            (
-                ox + dzx * cell + (cell - dl.get_width())  // 2,
-                oy + dzy * cell + (cell - dl.get_height()) // 2,
-            ),
-        )
-
-        # Grid lines
-        for c in range(gs + 1):
-            x = ox + c * cell
-            pygame.draw.line(surf, _c("grid_line"), (x, oy), (x, oy + gh))
-        for r in range(gs + 1):
-            y = oy + r * cell
-            pygame.draw.line(surf, _c("grid_line"), (ox, y), (ox + gw, y))
-
-        # Packages
-        for pkg in rs.get("packages", []):
-            px, py, delivered = int(pkg[0]), int(pkg[1]), bool(pkg[2])
-            col = _c("pkg_done") if delivered else _c("pkg_pend")
-            mg  = max(3, cell // 6)
-            pygame.draw.rect(
-                surf, col,
-                (ox + px * cell + mg, oy + py * cell + mg, cell - 2 * mg, cell - 2 * mg),
-                border_radius=max(2, cell // 8),
-            )
-
-        # Agent
-        ap      = rs.get("agent_pos", [0, 0])
-        carrying = rs.get("carrying", -1)
-        ax, ay  = int(ap[0]), int(ap[1])
-        acol    = _c("agent_carry") if carrying >= 0 else _c("agent")
-        rad     = max(4, cell // 3)
-        cx, cy  = ox + ax * cell + cell // 2, oy + ay * cell + cell // 2
-        pygame.draw.circle(surf, acol, (cx, cy), rad)
-        pygame.draw.circle(surf, _c("border"), (cx, cy), rad, 2)
-
-        # Episode / step / reward overlay below grid
+        # Episode / step / reward overlay below the drawing
         ep_r = m.get("ep_reward", 0.0)
         ep   = m.get("episode",   0)
         step = m.get("step",      0)
