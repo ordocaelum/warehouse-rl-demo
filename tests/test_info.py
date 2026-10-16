@@ -80,3 +80,40 @@ def test_success_on_last_step_reports_all_delivered():
     _, _, terminated, truncated, info = env.step(DROPOFF)
     assert terminated and truncated
     assert info["termination_reason"] == "all_delivered"
+
+
+def test_delivery_zone_is_reported():
+    env = WarehouseEnv(grid_size=7)
+    _, info = env.reset(seed=0)
+    assert info["delivery_zone"] == [6, 6]
+    *_, info = env.step(RIGHT)
+    assert info["delivery_zone"] == [6, 6]
+
+
+def test_callbacks_forward_delivery_zone_from_info(monkeypatch):
+    import queue
+    import threading
+
+    from stable_baselines3 import DQN
+    from stable_baselines3.common.env_util import make_vec_env
+
+    import train_agent
+    from fakes import RecordingVisualizer
+    from ui_dashboard import _Callback
+
+    class MovedZone(WarehouseEnv):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.delivery_zone = (0, self.grid_size - 1)
+
+    viz = RecordingVisualizer()
+    monkeypatch.setattr(train_agent, "WarehouseEnv", MovedZone)
+    _, _, env = train_agent.train_agent(total_timesteps=50, visualizer=viz, seed=0, grid_size=5)
+    env.close()
+    assert {tuple(u["delivery_zone"]) for u in viz.updates} == {(0, 4)}
+
+    q = queue.Queue()
+    env = make_vec_env(lambda: MovedZone(grid_size=5), n_envs=1, seed=0)
+    DQN("MlpPolicy", env, seed=0).learn(50, callback=_Callback(q, threading.Event(), threading.Event()))
+    env.close()
+    assert {tuple(u["delivery_zone"]) for u in q.queue} == {(0, 4)}

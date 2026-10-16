@@ -65,6 +65,7 @@ class RewardCallback(BaseCallback):
                 "epsilon":   epsilon,
                 **env_state,
                 "grid_size": int(raw_env.grid_size),
+                "delivery_zone": self.locals["infos"][0]["delivery_zone"],
             })
 
             # Honour pause/resume from visualizer; bail out if it stops running.

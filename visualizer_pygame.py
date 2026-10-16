@@ -69,6 +69,7 @@ class WarehouseVisualizer:
             "packages":     [[x, y, delivered], ...],
             "carrying":     -1 or package_index,
             "grid_size":    8,
+            "delivery_zone": [x, y],
         })
 
         # once per finished episode:
@@ -101,6 +102,7 @@ class WarehouseVisualizer:
             "packages":  [],
             "carrying":  -1,
             "grid_size": grid_size,
+            "delivery_zone": None,  # None until the first update: bottom-right
         }
 
         # Visualizer-local mutable properties
@@ -297,8 +299,7 @@ class WarehouseVisualizer:
         oy = self._pan_y
 
         # --- delivery zone --------------------------------------------------
-        dz_x = gs - 1
-        dz_y = gs - 1
+        dz_x, dz_y = state.get("delivery_zone") or (gs - 1, gs - 1)
         pygame.draw.rect(
             screen, COL_DELIVERY,
             (ox + dz_x * cell, oy + dz_y * cell, cell, cell)

@@ -362,6 +362,7 @@ class _Callback(_BaseCallback):
             "epsilon":     eps,
             **env_state,
             "grid_size":   int(raw.grid_size),
+            "delivery_zone": self.locals["infos"][0]["delivery_zone"],
             "total_steps": self.num_timesteps,
             "elapsed":     time.time() - self._t0,
             "ep_rewards":  list(self.ep_rewards[-100:]),
@@ -801,15 +802,16 @@ class Dashboard:
         ox   = LEFT_W + (CENTER_W - gw) // 2
         oy   = (CENTER_H - gh) // 2 - 10
 
-        # Delivery zone (bottom-right cell)
-        dz = gs - 1
-        pygame.draw.rect(surf, _c("delivery"), (ox + dz * cell, oy + dz * cell, cell, cell))
+        # Delivery zone, as reported by the env (before the first update,
+        # the env's default bottom-right cell)
+        dzx, dzy = m.get("delivery_zone") or (gs - 1, gs - 1)
+        pygame.draw.rect(surf, _c("delivery"), (ox + dzx * cell, oy + dzy * cell, cell, cell))
         dl = self._fs.render("D", True, _c("delivery_lbl"))
         surf.blit(
             dl,
             (
-                ox + dz * cell + (cell - dl.get_width())  // 2,
-                oy + dz * cell + (cell - dl.get_height()) // 2,
+                ox + dzx * cell + (cell - dl.get_width())  // 2,
+                oy + dzy * cell + (cell - dl.get_height()) // 2,
             ),
         )
 

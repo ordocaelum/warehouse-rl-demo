@@ -101,6 +101,7 @@ class WarehouseEnv(gym.Env):
         return {
             "delivered": sum(1 for pkg in self.packages if pkg[2]),
             "num_packages": self.num_packages,
+            "delivery_zone": [int(c) for c in self.delivery_zone],
         }
 
     def _get_obs(self) -> np.ndarray:
@@ -152,6 +153,7 @@ class WarehouseEnv(gym.Env):
         info keys:
           delivered          packages delivered so far
           num_packages       packages in the episode
+          delivery_zone      [x, y] of the delivery zone
           invalid_action     True if the action changed nothing (walking into
                              a wall, pickup with nothing to pick up, dropoff
                              while empty-handed or away from the zone)
