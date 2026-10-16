@@ -6,9 +6,13 @@ class RecordingVisualizer:
 
     def __init__(self):
         self.updates = []
+        self.episode_rewards = []
 
     def put_update(self, state):
         self.updates.append(state)
+
+    def put_episode_reward(self, episode_reward):
+        self.episode_rewards.append(episode_reward)
 
     def is_paused(self):
         return False

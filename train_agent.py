@@ -82,6 +82,8 @@ class RewardCallback(BaseCallback):
         # End of episode bookkeeping
         if done:
             self.episode_rewards.append(self.current_reward)
+            if self._visualizer is not None:
+                self._visualizer.put_episode_reward(self.current_reward)
             self.current_reward = 0
             self._episode_num += 1
             self._step_in_ep = 0

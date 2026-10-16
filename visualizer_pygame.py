@@ -5,6 +5,7 @@ Runs in a separate thread and receives state updates via a thread-safe queue.
 The training loop runs on the main thread (CPU) and pushes updates via put_update().
 """
 
+import collections
 import queue
 import threading
 import time
@@ -26,6 +27,8 @@ GRID_SIZE = 8
 # Buffer enough frames for ~2 seconds at 60 FPS to absorb bursts without
 # slowing the training thread; excess updates are silently dropped.
 UPDATE_QUEUE_SIZE = 120
+# Completed-episode returns kept for the sparkline.
+REWARD_HISTORY_LEN = 200
 
 # Colours (R, G, B)
 COL_BG           = (30,  30,  40)
@@ -68,6 +71,9 @@ class WarehouseVisualizer:
             "grid_size":    8,
         })
 
+        # once per finished episode:
+        viz.put_episode_reward(episode_return)
+
         viz.stop()                   # signal visualizer to close
     """
 
@@ -106,7 +112,10 @@ class WarehouseVisualizer:
         self._dragging = False
         self._drag_start = (0, 0)
         self._pan_start = (0, 0)
-        self._reward_history: List[float] = []
+        # Completed-episode returns. Written by the training thread, read by
+        # the render thread, hence the lock. Never dropped, unlike updates.
+        self._reward_history = collections.deque(maxlen=REWARD_HISTORY_LEN)
+        self._reward_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Public API
@@ -132,6 +141,16 @@ class WarehouseVisualizer:
             self._queue.put_nowait(state)
         except queue.Full:
             pass  # visualizer is behind; skip frame
+
+    def put_episode_reward(self, episode_reward: float) -> None:
+        """Record the return of a finished episode for the reward sparkline."""
+        with self._reward_lock:
+            self._reward_history.append(float(episode_reward))
+
+    def reward_history(self) -> List[float]:
+        """Returns of the most recent finished episodes, oldest first."""
+        with self._reward_lock:
+            return list(self._reward_history)
 
     def is_paused(self) -> bool:
         """Return True while training is paused by the user."""
@@ -245,11 +264,6 @@ class WarehouseVisualizer:
     def _merge_state(self, update: dict) -> None:
         """Merge an incoming training-state snapshot into local state."""
         self._state.update(update)
-        ep_r = update.get("ep_reward")
-        if ep_r is not None:
-            self._reward_history.append(ep_r)
-            if len(self._reward_history) > 200:
-                self._reward_history = self._reward_history[-200:]
 
     # ------------------------------------------------------------------
     # Drawing helpers
@@ -408,10 +422,11 @@ class WarehouseVisualizer:
         y += surf.get_height() + 4
 
         # mini reward history sparkline
-        if len(self._reward_history) >= 2:
+        history = self.reward_history()
+        if len(history) >= 2:
             y += 12
             label("== REWARD HISTORY ==", font=font_small)
-            self._draw_sparkline(screen, font_small, x, y, PANEL_WIDTH - 24, 60)
+            self._draw_sparkline(screen, font_small, history, x, y, PANEL_WIDTH - 24, 60)
             y += 72
 
         # controls legend
@@ -433,13 +448,14 @@ class WarehouseVisualizer:
         self,
         screen: "pygame.Surface",
         font: "pygame.font.Font",
+        history: List[float],
         x: int,
         y: int,
         w: int,
         h: int,
     ) -> None:
         """Draw a tiny sparkline of recent episode rewards."""
-        data = self._reward_history[-w:]  # up to w most recent reward data points
+        data = history[-w:]  # up to w most recent episode returns
         if len(data) < 2:
             return
         mn = min(data)
