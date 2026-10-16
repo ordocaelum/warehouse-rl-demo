@@ -52,3 +52,35 @@ was wrong, what changed, and whether behaviour changed.
 - **Added: test suite** (`pytest`) covering the environment contract
   (observation layout and bounds, every reward term, termination and
   truncation, Gymnasium's `check_env`) and the callback fixes above.
+
+### Phase B — contract and correctness gaps
+
+- **Added: `info` is populated.** `step()` reports `delivered`,
+  `num_packages`, `delivery_zone`, `action_mask`, `invalid_action`,
+  `is_success` (SB3 logs it as `rollout/success_rate`) and
+  `termination_reason` (`"all_delivered"`, `"max_steps"` or `None`). It was
+  always `{}`.
+- **Fixed: the delivery zone was hard-coded in both renderers.** Its position
+  is now in `info`; the callbacks forward it and the renderers draw it there.
+- **Added: constructor validation.** `grid_size < 3`, `num_packages < 1`,
+  `max_steps < 1`, a non-finite `step_cost`, or non-integer sizes raise
+  immediately instead of crashing later or ending every episode at once.
+- **Fixed: STOP and the training thread raced to set the dashboard state.**
+  Only the UI thread writes it now; a stopped run always ends "idle", a
+  completed run "done".
+- **Fixed: CLI and dashboard trained differently** for the same visible
+  settings. Both build the agent through `make_env()`/`make_dqn()`.
+  *Behaviour change:* the dashboard's `exploration_fraction` is 0.2 (was
+  0.3), matching the CLI and README.
+- **Fixed: `test_agent` evaluated on the default environment.** It takes the
+  training configuration and refuses a model whose observation space does not
+  match. The CLI gains `--grid-size`, `--packages`, `--max-steps`,
+  `--step-cost`.
+- **Added: Gymnasium conventions.** `render_mode` (`"human"`, `"ansi"`),
+  registration as `Warehouse-v0`, `action_masks()`, and environments are
+  closed after use. *Behaviour change:* `render()` without a `render_mode` now
+  warns instead of printing.
+- **Fixed: loose observation bounds.** Coordinates are bounded by
+  `grid_size - 1` and flags by 1; internal state is explicitly integer and
+  rewards are Python floats. *Behaviour change:* models saved before this
+  change cannot be loaded, because SB3 compares the saved observation space.
