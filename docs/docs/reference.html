@@ -35,7 +35,8 @@ toc:
   <h2>Observation Space</h2>
   <p>Observation vector format:</p>
   {% include code-block.html code="[agent_x, agent_y, carrying, package_1_x, package_1_y, package_1_delivered, ...]" %}
-  <p>Each additional package contributes three fields: x coordinate, y coordinate, delivered flag.</p>
+  <p>Each additional package contributes three fields: x coordinate, y coordinate, delivered flag. A package's x/y is where it currently is: its pickup cell while waiting, the agent's cell while carried, the delivery zone once delivered.</p>
+  <p>Bounds are exact: coordinates lie in [0, grid_size &minus; 1] and flags in {0, 1}. The bounds are part of the observation space saved with a model, so a model loads only into the same grid size and package count.</p>
 </section>
 
 <section id="reward-structure">
@@ -43,10 +44,11 @@ toc:
   <ul>
     <li>Delivery bonus: +10</li>
     <li>Pickup reward: +1</li>
-    <li>Distance reduction bonus: +0.1</li>
-    <li>Distance penalty: -0.01 multiplied by nearest package distance</li>
-    <li>Step cost: -0.05 default</li>
+    <li>Distance reduction bonus: +0.1 for a move that reduces the distance to the nearest undelivered package</li>
+    <li>Distance penalty: -0.01 multiplied by that distance, after each move</li>
+    <li>Step cost: -0.05 default, every step, including actions that change nothing</li>
   </ul>
+  <p>The two distance terms apply only to move actions taken while not carrying a package.</p>
 </section>
 
 <section id="dqn-parameters">
@@ -60,6 +62,10 @@ toc:
         <tr><td>Initial epsilon</td><td>1.0</td><td>Full exploration at start</td></tr>
         <tr><td>Final epsilon</td><td>0.1</td><td>Residual exploration after decay</td></tr>
         <tr><td>Total timesteps</td><td>100k</td><td>Scale with complexity</td></tr>
+        <tr><td>Learning starts</td><td>500</td><td>Fixed; steps collected before training begins</td></tr>
+        <tr><td>Target update interval</td><td>500</td><td>Fixed; steps between target-network updates</td></tr>
+        <tr><td>Exploration fraction</td><td>0.2</td><td>Fixed; share of training over which epsilon decays</td></tr>
+        <tr><td>Seed</td><td>0</td><td>Default of the CLI and the dashboard; seeds the environment, action space, numpy, Python's random and torch</td></tr>
       </tbody>
     </table>
   </div>
@@ -69,8 +75,9 @@ toc:
   <h2>Environment Details</h2>
   <ul>
     <li>Grid-world delivery environment with configurable dimensions and package count.</li>
-    <li>Delivery zone fixed to bottom-right corner by default.</li>
-    <li>Episode termination controlled by delivery completion or max steps.</li>
+    <li>The agent starts at the top-left cell; packages are placed at random inside the border.</li>
+    <li>The delivery zone is always the bottom-right cell; it is not configurable.</li>
+    <li>An episode terminates when every package is delivered and is truncated at max steps.</li>
     <li>Dashboard and visualizer provide real-time trajectory and reward diagnostics.</li>
   </ul>
 </section>

@@ -141,13 +141,14 @@ env = WarehouseEnv(max_steps=400, step_cost=0.02)" %}
     </table>
   </div>
   <h3>Observation Space</h3>
-  <p>For one package: six dimensions (agent x/y, carrying status, package x/y, delivered status). Additional packages append three dimensions each.</p>
+  <p>For one package: six dimensions (agent x/y, carrying status, package x/y, delivered status). Additional packages append three dimensions each. A package's x/y is where it currently is: its pickup cell while waiting, the agent's cell while carried, the delivery zone once delivered.</p>
   <h3>Reward Structure</h3>
   <ul>
     <li>+10 deliver package</li>
     <li>+1 pick up package</li>
-    <li>+0.1 per step reducing nearest-package distance</li>
-    <li>-0.01 multiplied by nearest package distance</li>
-    <li>-0.05 per step as baseline movement penalty</li>
+    <li>+0.1 for a move that reduces the distance to the nearest undelivered package</li>
+    <li>-0.01 multiplied by that distance, after each move</li>
+    <li>-Step Cost every step (default 0.05), including actions that change nothing</li>
   </ul>
+  <p>The two distance terms apply only to move actions taken while not carrying a package.</p>
 </section>

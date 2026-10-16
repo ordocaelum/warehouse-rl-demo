@@ -181,10 +181,11 @@
                     <ul>
                         <li><strong>+10</strong> for delivering a package to delivery zone</li>
                         <li><strong>+1</strong> for picking up a package</li>
-                        <li><strong>+0.1</strong> bonus for steps reducing distance to nearest package</li>
-                        <li><strong>-0.01 × distance</strong> per step away from nearest package</li>
-                        <li><strong>-0.05</strong> per step (exploration penalty)</li>
+                        <li><strong>+0.1</strong> bonus for a move that reduces the distance to the nearest undelivered package</li>
+                        <li><strong>-0.01 × distance</strong> to the nearest undelivered package, after each move</li>
+                        <li><strong>-Step Cost</strong> every step (default 0.05), including actions that change nothing</li>
                     </ul>
+                    <p>The two distance terms apply only to move actions taken while not carrying a package.</p>
                 </div>
             </div>
         </section>
@@ -381,11 +382,13 @@
                         <li>Carrying status (0 or 1)</li>
                         <li>For each package: X, Y, delivery_status</li>
                     </ul>
+                    <p>A package's X, Y is where it currently is: its pickup cell while waiting, the agent's cell while carried, the delivery zone once delivered. Coordinates are bounded to [0, grid_size − 1] and flags to {0, 1}; these bounds are part of the observation space, so a model trained on one grid size does not load on another.</p>
 
                     <h3>DQN Parameters</h3>
                     <ul>
                         <li>Learning rate: 1e-3 (adjustable)</li>
                         <li>Replay buffer size: 10k (adjustable)</li>
+                        <li>Learning starts: after 500 steps</li>
                         <li>Target update interval: 500 steps</li>
                         <li>Exploration fraction: 20% of training</li>
                     </ul>
