@@ -3,6 +3,7 @@
 import queue
 import threading
 
+from helpers import thread_params
 from ui_dashboard import _TrainingThread
 
 PARAMS = dict(
@@ -18,7 +19,7 @@ def _run(stop_immediately, run_dir):
         stop_ev.set()
     results = []
     thread = _TrainingThread(
-        dict(PARAMS, run_dir=str(run_dir)), queue.Queue(), stop_ev, threading.Event(),
+        thread_params(run_dir, **PARAMS), queue.Queue(), stop_ev, threading.Event(),
         on_done=lambda t: results.append((t.model, t.error)),
     )
     thread.start()

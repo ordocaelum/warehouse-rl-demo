@@ -21,7 +21,9 @@ warehouse-rl-demo/
 ├── ui_dashboard.py        # Interactive RL Training Lab (PyGame UI)
 ├── visualizer_pygame.py   # Lightweight live PyGame visualizer (threaded)
 ├── lab_render.py          # Renderer interface: how the lab draws an environment
+├── lab_params.py          # Declarative schema for the dashboard's settings
 ├── warehouse_render.py    # Renderer for WarehouseEnv's render state
+├── warehouse_lab.py       # WarehouseEnv's settings for the dashboard
 ├── requirements.txt       # Python dependencies (pinned)
 ├── requirements-dev.txt   # + pytest
 ├── requirements.lock      # every package pinned, all platforms
@@ -74,13 +76,19 @@ A 1300×780 window opens with three panels:
 | Grid Size | 6 – 15 | 8 | Warehouse grid dimensions |
 | Packages | 1 – 5 | 1 | Number of packages to deliver |
 | Max Steps | 100 – 500 | 300 | Episode step limit |
-| Timesteps (k) | 10k – 500k | 100k | Total training timesteps |
+| Step Cost | 0.01 – 0.5 | 0.05 | Per-step reward penalty |
 | Learning Rate | 1e-4 – 1e-2 | 1e-3 | DQN learning rate (log scale) |
 | Init Epsilon | 0.5 – 1.0 | 1.0 | Starting exploration rate |
 | Final Epsilon | 0.01 – 0.3 | 0.1 | Ending exploration rate |
 | Buffer (k) | 1k – 50k | 10k | Replay buffer size |
-| Step Cost | 0.01 – 0.5 | 0.05 | Per-step reward penalty |
+| Timesteps (k) | 10k – 500k | 100k | Total training timesteps |
 | Seed | 0 – 999 | 0 | Random seed for the environment, agent and torch |
+
+The sliders are generated from a declarative schema (`lab_params.py`): each
+setting names the keyword argument it sets, whether it goes to the
+environment, the agent or the run, its type, range, default, unit scale and
+whether the slider is logarithmic. The environment's settings come first
+(`warehouse_lab.py`), then the agent's and the run's.
 
 #### Center Panel – Live Warehouse Grid
 

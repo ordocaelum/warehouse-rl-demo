@@ -5,6 +5,7 @@ import threading
 import time
 
 import train_agent as ta
+from helpers import thread_params
 from latest_slot import LatestSlot
 from ui_dashboard import _TrainingThread
 
@@ -30,7 +31,7 @@ def _start(run_dir, pause=False, **overrides):
         pause_ev.set()
     done = []
     thread = _TrainingThread(
-        dict(PARAMS, run_dir=str(run_dir), **overrides), LatestSlot(), stop_ev, pause_ev,
+        thread_params(run_dir, **dict(PARAMS, **overrides)), LatestSlot(), stop_ev, pause_ev,
         on_done=done.append, save_req=save_req, saved_q=saved_q,
     )
     thread.start()
